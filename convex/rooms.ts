@@ -117,6 +117,18 @@ export const addInterjection = mutation({
   },
 });
 
+export const listInterjections = query({
+  args: {
+    roomId: v.id("rooms"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("interjections")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .collect();
+  },
+});
+
 export const listThreadMessages = query({
   args: {
     threadId: v.string(),
