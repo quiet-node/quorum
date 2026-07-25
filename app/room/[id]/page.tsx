@@ -452,13 +452,22 @@ export default function RoomPage() {
     }
     // The message list is paginated to a recent window, but interjections load
     // in full. Steers older than the oldest loaded message have no surrounding
-    // context on screen and would clump at the top of the feed, so hide them;
-    // the participant rail still quotes every person's latest steer.
+    // context on screen and would clump at the top of the feed, so hide them,
+    // EXCEPT each author's latest steer: the rail links to it, so it must
+    // always exist in the feed as a jump target.
     const oldestLoaded = items.length
       ? Math.min(...items.map((i) => i.creationTime))
       : 0;
+    const latestPerAuthor = new Map<string, string>();
+    for (const i of interjections ?? []) latestPerAuthor.set(i.authorName, i._id);
+    const keepAlways = new Set(latestPerAuthor.values());
     for (const i of interjections ?? []) {
-      if (items.length && i._creationTime < oldestLoaded) continue;
+      if (
+        items.length &&
+        i._creationTime < oldestLoaded &&
+        !keepAlways.has(i._id)
+      )
+        continue;
       items.push({
         kind: "interjection",
         key: i._id,
