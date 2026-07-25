@@ -8,40 +8,48 @@
  * @module
  */
 
+import type * as agent from "../agent.js";
+import type * as rooms from "../rooms.js";
+import type * as roomsInternal from "../roomsInternal.js";
+
 import type {
   ApiFromModules,
   FilterApi,
   FunctionReference,
-  AnyComponents,
 } from "convex/server";
-import type * as agent from "../agent.js";
-import type * as roomsInternal from "../roomsInternal.js";
-import type * as rooms from "../rooms.js";
+
+declare const fullApi: ApiFromModules<{
+  agent: typeof agent;
+  rooms: typeof rooms;
+  roomsInternal: typeof roomsInternal;
+}>;
 
 /**
- * A utility for referencing Convex functions in your app's API.
+ * A utility for referencing Convex functions in your app's public API.
  *
  * Usage:
  * ```js
  * const myFunctionReference = api.myModule.myFunction;
  * ```
  */
-declare const fullApi: ApiFromModules<{
-  agent: typeof agent;
-  roomsInternal: typeof roomsInternal;
-  rooms: typeof rooms;
-}>;
 export declare const api: FilterApi<
   typeof fullApi,
   FunctionReference<any, "public">
 >;
+
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
 export declare const internal: FilterApi<
   typeof fullApi,
   FunctionReference<any, "internal">
 >;
 
-/**
- * Convex components installed on this app. Untyped until `npx convex dev`
- * authenticates and runs a real push.
- */
-export declare const components: AnyComponents;
+export declare const components: {
+  agent: import("@convex-dev/agent/_generated/component.js").ComponentApi<"agent">;
+};
