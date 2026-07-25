@@ -1021,7 +1021,11 @@ export default function RoomPage() {
                       key={item.key}
                       className="steer"
                       data-steer-author={item.authorName}
-                      style={{ borderLeftColor: colorForName(item.authorName) }}
+                      style={
+                        {
+                          "--steer-color": colorForName(item.authorName),
+                        } as React.CSSProperties
+                      }
                     >
                       <div className="steer-who">{item.authorName} steered</div>
                       <div className="steer-text">{item.text}</div>

@@ -421,16 +421,19 @@ body {
 
 /* human interjection */
 .steer {
-  margin: 9px 0;
-  padding: 7px 11px;
-  border-left: 2px solid #8c9196;
-  background: var(--panel);
-  border-radius: 0 5px 5px 0;
+  margin: 11px 0;
+  padding: 8px 12px;
+  border-left: 2px solid var(--steer-color, #8c9196);
+  /* Faint wash of the author's color so human voices read distinct from
+     agent prose without shouting. */
+  background: color-mix(in srgb, var(--steer-color, #8c9196) 9%, var(--panel));
+  border-radius: 0 6px 6px 0;
 }
 .steer-who {
   font-family: var(--mono);
   font-size: 10.5px;
-  color: var(--t3);
+  letter-spacing: 0.02em;
+  color: var(--steer-color, var(--t3));
 }
 .steer-text {
   margin-top: 2px;
@@ -1585,7 +1588,26 @@ pre.file-body {
 .person.clickable:hover {
   background: rgba(255, 255, 255, 0.04);
 }
-.steer-flash {
-  outline: 1px solid var(--em, #34d399);
-  transition: outline-color 1s ease;
+/* Jump highlight: a soft wash of the author's color that settles back
+   into the chip's resting tint. No outlines, no boxes. */
+@media (prefers-reduced-motion: no-preference) {
+  .steer-flash {
+    animation: steerWash 1.4s ease-out;
+  }
+}
+@keyframes steerWash {
+  0% {
+    background-color: color-mix(
+      in srgb,
+      var(--steer-color, #8c9196) 26%,
+      var(--panel)
+    );
+  }
+  100% {
+    background-color: color-mix(
+      in srgb,
+      var(--steer-color, #8c9196) 9%,
+      var(--panel)
+    );
+  }
 }
