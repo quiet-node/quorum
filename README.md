@@ -8,7 +8,9 @@ Agent sessions are single-player today: one person prompts, everyone else reads 
 
 https://usequorum.vercel.app
 
-No login required. Open a room, share the QR, start a run. The Anthropic key behind it is event-scoped and may stop working roughly 24 hours after the event.
+No login required. Create a room and the agent starts working on it immediately; share the QR and anyone can steer. Typing into a quiet room wakes the agent by itself, no start button needed. The Anthropic key behind it is event-scoped and may stop working roughly 24 hours after the event.
+
+A session from tonight with three humans steering one agent: https://usequorum.vercel.app/room/jd73y05nsc4eqezz7cmekf3jw98b7b1t
 
 ## Built tonight at Night Hack
 
@@ -21,7 +23,7 @@ The repository was empty at kickoff. The first commit (`4177efc`, 7:22 PM, durin
 - **Next.js 16 (App Router) on Vercel** for the room UI: live transcript, participant rail, artifact pane, QR invite.
 - **Convex** as the reactive backend. Every client subscribes to the same queries, so joins, interjections, and run status land on every screen at once with no socket code, and `@convex-dev/agent` saves the model output as streamed deltas, which is what makes one run watchable by many clients at the same time rather than only by the browser that started it.
 - **Anthropic Claude** for the agent. The model id is read from `AGENT_MODEL` at run time (no redeploy to change it) and defaults to `claude-sonnet-5`.
-- **Hand-rolled steering queue.** The run is a loop of short agent steps. Between steps the server drains the unconsumed interjections for the room, prepends them to the next prompt as `INTERJECTION from <name>:` lines, and marks them consumed. That gap between steps is the co-steering mechanic.
+- **Hand-rolled steering queue.** The run is a loop of short agent steps. Between steps the server drains the unconsumed interjections for the room, prepends them to the next prompt as `INTERJECTION from <name>:` lines, and marks them consumed. That gap between steps is the co-steering mechanic. A message sent into an idle or finished room schedules a fresh run on its own, so the agent always answers.
 - **Server-side spend caps.** One transactional mutation (`reserveRun`) enforces 3 concurrent runs globally and 10 runs per room before flipping a room to running, so two racing clients cannot both slip past the cap. Stale slots expire so an abandoned run cannot hold capacity forever.
 
 ## Run locally
