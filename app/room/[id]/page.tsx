@@ -356,6 +356,7 @@ export default function RoomPage() {
   const roomId = params.id as Id<"rooms">;
 
   const room = useQuery(api.rooms.getRoom, { roomId });
+  const agentModel = useQuery(api.rooms.getAgentModel, {});
   const participants = useQuery(api.rooms.listParticipants, { roomId });
   const interjections = useQuery(api.rooms.listInterjections, { roomId });
   const repoFilePaths = useQuery(api.repoFiles.listRepoFilePaths, {});
@@ -1111,7 +1112,7 @@ export default function RoomPage() {
                 return (
                   <div key={item.key} className="msg">
                     <div className="msg-head">
-                      <span className="msg-who">claude</span>
+                      <span className="msg-who">agent</span>
                       <span className="msg-ts">
                         {clockTime(item.creationTime)}
                       </span>
@@ -1174,7 +1175,7 @@ export default function RoomPage() {
                 </div>
               )}
               <div className="composer-meta">
-                <span>claude-sonnet-5</span>
+                <span>{agentModel?.shortName ?? "agent"}</span>
                 <span>·</span>
                 <span>anyone in the room can steer</span>
                 <span className="spacer" />
