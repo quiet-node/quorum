@@ -1,5 +1,5 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { api, components } from "./_generated/api";
 import { listUIMessages, syncStreams, vStreamArgs } from "@convex-dev/agent";
@@ -80,12 +80,51 @@ export const listRecentRooms = query({
   },
 });
 
+// Sane boundary check, not full RFC 5322: one "@", something on each side, a
+// dot in the domain part, no whitespace.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Normalizes and validates an email address for server-side storage.
+ *
+ * Trims surrounding whitespace and lowercases before the regex check, so
+ * "Foo@Bar.com " and "foo@bar.com" collide onto the same lead row. Throws a
+ * ConvexError with a clean message on anything that fails the shape check.
+ */
+function normalizeEmail(raw: string): string {
+  const email = raw.trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) {
+    throw new ConvexError("Enter a valid email address.");
+  }
+  return email;
+}
+
 export const joinRoom = mutation({
   args: {
     roomId: v.id("rooms"),
     name: v.string(),
+    email: v.string(),
   },
   handler: async (ctx, args) => {
+    const email = normalizeEmail(args.email);
+
+    const existingLead = await ctx.db
+      .query("leads")
+      .withIndex("by_email", (q) => q.eq("email", email))
+      .unique();
+    if (existingLead) {
+      await ctx.db.patch(existingLead._id, {
+        name: args.name,
+        roomId: args.roomId,
+      });
+    } else {
+      await ctx.db.insert("leads", {
+        email,
+        name: args.name,
+        roomId: args.roomId,
+      });
+    }
+
     const existing = await ctx.db
       .query("participants")
       .withIndex("by_room", (q) => q.eq("roomId", args.roomId))

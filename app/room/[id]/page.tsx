@@ -578,7 +578,9 @@ export default function RoomPage() {
     loadIdentity(roomId),
   );
   const [nameInput, setNameInput] = useState("");
+  const [emailInput, setEmailInput] = useState("");
   const [joining, setJoining] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
   const [interjectionInput, setInterjectionInput] = useState("");
   const [sending, setSending] = useState(false);
   const [waking, setWaking] = useState(false);
@@ -612,12 +614,14 @@ export default function RoomPage() {
 
   async function handleJoin(e: React.FormEvent) {
     e.preventDefault();
-    if (!nameInput.trim() || joining) return;
+    if (!nameInput.trim() || !emailInput.trim() || joining) return;
     setJoining(true);
+    setJoinError(null);
     try {
       const { participantId, color } = await joinRoom({
         roomId,
         name: nameInput.trim(),
+        email: emailInput.trim(),
       });
       const next: StoredIdentity = {
         participantId,
@@ -626,6 +630,8 @@ export default function RoomPage() {
       };
       localStorage.setItem(storageKey(roomId), JSON.stringify(next));
       setIdentity(next);
+    } catch (err) {
+      setJoinError(convexErrorMessage(err, "Could not join the room."));
     } finally {
       setJoining(false);
     }
@@ -686,6 +692,21 @@ export default function RoomPage() {
                 required
                 autoFocus
               />
+            </div>
+            <div className="field-block">
+              <label className="landing-label" htmlFor="email">
+                Your email
+              </label>
+              <input
+                id="email"
+                type="email"
+                className="input"
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                placeholder="you@company.com"
+                required
+              />
+              {joinError && <p className="field-error">{joinError}</p>}
             </div>
             <button type="submit" className="btn-primary" disabled={joining}>
               {joining ? "Joining…" : "Join room"}

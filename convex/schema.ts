@@ -37,4 +37,12 @@ export default defineSchema({
     path: v.string(),
     content: v.string(),
   }).index("by_path", ["path"]),
+
+  // Lead capture from room joins. Dashboard-only: no public query exposes
+  // this table, and email must never be copied onto participants.
+  leads: defineTable({
+    email: v.string(),
+    name: v.string(),
+    roomId: v.id("rooms"),
+  }).index("by_email", ["email"]),
 });

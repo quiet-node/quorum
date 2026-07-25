@@ -952,6 +952,11 @@ pre.file-body {
 .field-block {
   margin-bottom: 14px;
 }
+.field-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--del);
+}
 .btn-primary {
   width: 100%;
   padding: 9px 12px;
