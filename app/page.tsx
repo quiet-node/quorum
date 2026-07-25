@@ -4,7 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { convexErrorMessage } from "@/app/convexError";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const TEMPLATES = [
   {
@@ -29,6 +29,53 @@ const TEMPLATES = [
 
 /** Rows rendered while the rooms rail is loading, so the rail never jumps. */
 const SKELETON_ROWS = [0, 1, 2];
+
+/** Room names cycled through the title field placeholder. */
+const TITLE_SUGGESTIONS = [
+  "Checkout bug war-room",
+  "Pricing page sprint",
+  "Launch-day incident",
+  "Onboarding revamp",
+  "API rate-limit fix",
+  "Docs overhaul",
+];
+
+/** Task prompts cycled through the composer textarea placeholder. */
+const TASK_SUGGESTIONS = [
+  "Fix the flaky checkout webhook and draft the patch",
+  "Plan tomorrow's launch, hour by hour",
+  "Triage tonight's incident and draft the status page",
+  "Rewrite the onboarding flow and list the tradeoffs",
+  "Find why the API rate limiter drops retries",
+];
+
+/** How long each placeholder suggestion stays on screen. */
+const ROTATION_MS = 3500;
+
+/**
+ * Cycles through placeholder suggestions on a fixed interval.
+ *
+ * Rotation is suspended while `paused` is true (field focused or non-empty) and
+ * is skipped entirely when the user prefers reduced motion, in which case the
+ * first suggestion stays put.
+ */
+function useRotatingPlaceholder(
+  suggestions: readonly string[],
+  paused: boolean,
+): string {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    if (paused) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => {
+      setIndex((current) => (current + 1) % suggestions.length);
+    }, ROTATION_MS);
+    return () => window.clearInterval(timer);
+  }, [paused, suggestions.length]);
+
+  return suggestions[index];
+}
 
 type RecentRoom = {
   _id: string;
@@ -59,6 +106,17 @@ export default function Home() {
   const [taskPrompt, setTaskPrompt] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [titleFocused, setTitleFocused] = useState(false);
+  const [taskFocused, setTaskFocused] = useState(false);
+
+  const titlePlaceholder = useRotatingPlaceholder(
+    TITLE_SUGGESTIONS,
+    titleFocused || title.length > 0,
+  );
+  const taskPlaceholder = useRotatingPlaceholder(
+    TASK_SUGGESTIONS,
+    taskFocused || taskPrompt.length > 0,
+  );
 
   /** Fills the composer from a template chip. */
   function applyTemplate(template: (typeof TEMPLATES)[number]) {
@@ -185,7 +243,10 @@ export default function Home() {
               className="lp-task"
               value={taskPrompt}
               onChange={(e) => setTaskPrompt(e.target.value)}
-              placeholder="Describe the task — your team can steer once it's running"
+              onFocus={() => setTaskFocused(true)}
+              onBlur={() => setTaskFocused(false)}
+              placeholder={taskPlaceholder}
+              aria-label="Task description"
               rows={3}
               required
             />
@@ -196,7 +257,9 @@ export default function Home() {
                 className="lp-title-field"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Untitled room"
+                onFocus={() => setTitleFocused(true)}
+                onBlur={() => setTitleFocused(false)}
+                placeholder={titlePlaceholder}
                 aria-label="Room title"
               />
             </div>
