@@ -1576,3 +1576,16 @@ pre.file-body {
 .person.away {
   opacity: 0.45;
 }
+
+/* Rail names jump to that person's latest steer in the transcript. */
+.person.clickable {
+  cursor: pointer;
+  border-radius: 4px;
+}
+.person.clickable:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.steer-flash {
+  outline: 1px solid var(--em, #34d399);
+  transition: outline-color 1s ease;
+}

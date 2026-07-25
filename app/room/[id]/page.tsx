@@ -496,13 +496,29 @@ export default function RoomPage() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  // A fresh visitor must land on the live edge of the session, not the top.
+  // Browsers can fire a scroll event at position 0 during initial layout,
+  // which latched isAtBottom=false before content arrived; ignore scroll
+  // events until the first populated render has forced the bottom jump.
+  const didInitialJump = useRef(false);
 
   useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || feed.length === 0) return;
+    if (!didInitialJump.current) {
+      requestAnimationFrame(() => {
+        el.scrollTo({ top: el.scrollHeight });
+        didInitialJump.current = true;
+        setIsAtBottom(true);
+      });
+      return;
+    }
     if (!isAtBottom) return;
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    el.scrollTo({ top: el.scrollHeight });
   }, [feed, isAtBottom]);
 
   function handleScroll() {
+    if (!didInitialJump.current) return;
     const el = scrollRef.current;
     if (!el) return;
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
@@ -671,6 +687,27 @@ export default function RoomPage() {
   }
 
   const people = participants ?? [];
+
+  /**
+   * Scrolls the transcript to a participant's most recent steer and flashes it.
+   * Rail names are only clickable when the person has steered at least once.
+   */
+  function jumpToSteer(name: string) {
+    const nodes = document.querySelectorAll(
+      `[data-steer-author="${CSS.escape(name)}"]`,
+    );
+    const last = nodes[nodes.length - 1];
+    if (!last) return;
+    const reduce = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    last.scrollIntoView({
+      behavior: reduce ? "auto" : "smooth",
+      block: "center",
+    });
+    last.classList.add("steer-flash");
+    setTimeout(() => last.classList.remove("steer-flash"), 1200);
+  }
   const statusDot =
     room.status === "running"
       ? "dot dot-em"
@@ -904,8 +941,14 @@ export default function RoomPage() {
               // Inactive participants stay visible but dimmed: an unattended
               // judge should still see everyone who was in the room.
               const cls = p.name === identity.name ? "person self" : "person";
+              const dimmed = p.active ? cls : cls + " away";
               return (
-                <div key={p._id} className={p.active ? cls : cls + " away"}>
+                <div
+                  key={p._id}
+                  className={steer ? dimmed + " clickable" : dimmed}
+                  onClick={steer ? () => jumpToSteer(p.name) : undefined}
+                  title={steer ? "Jump to latest steer" : undefined}
+                >
                   <i className="av" style={{ background: p.color }}>
                     {initials(p.name)}
                   </i>
@@ -969,6 +1012,7 @@ export default function RoomPage() {
                     <div
                       key={item.key}
                       className="steer"
+                      data-steer-author={item.authorName}
                       style={{ borderLeftColor: colorForName(item.authorName) }}
                     >
                       <div className="steer-who">{item.authorName} steered</div>
