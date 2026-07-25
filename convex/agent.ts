@@ -6,6 +6,7 @@ import { internal, components } from "./_generated/api";
 import { Agent, createTool, stepCountIs, type ToolCtx } from "@convex-dev/agent";
 import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
+import { agentModelId } from "./model";
 
 export const RUN_COMPLETE_MARKER = "[RUN_COMPLETE]";
 const MAX_STEPS = 28;
@@ -36,9 +37,16 @@ const readFile = createTool({
   },
 });
 
-export const warRoomAgent = new Agent(components.agent, {
+/**
+ * Builds the facilitator agent for one run.
+ *
+ * The model is a parameter rather than a module constant so a change to the
+ * AGENT_MODEL environment variable applies to the next run without a redeploy.
+ */
+const createWarRoomAgent = (modelId: string) =>
+  new Agent(components.agent, {
   name: "war-room-facilitator",
-  languageModel: anthropic("claude-sonnet-5"),
+  languageModel: anthropic(modelId),
   tools: { listFiles, readFile },
   stopWhen: stepCountIs(8),
   instructions:
@@ -50,7 +58,7 @@ export const warRoomAgent = new Agent(components.agent, {
     "As soon as you have written your first complete diff hunk, write a SHORT pull request description and place it at the TOP of the artifact, above the diff: a one-line title followed by two or three sentences of body, under 100 words total. Never defer the PR description to the end of the run, and never put it below the diff. Once it exists, re-emit it at the top of the artifact every step and keep refining the diff beneath it. " +
     "Never narrate your own output mechanics. Do not mention truncation, output limits, token budgets, code fences, or how much room you have left, and never apologize for clipping or cutting off. Sentences like 'I keep clipping on this block', 'that got cut off', or 'to stay within the limit' are forbidden: the room sees the working draft, not your plumbing. If a hunk or draft is incomplete when a step ends, simply continue it on the next step with no commentary about why it stopped, and never announce a change of tactics caused by output length. " +
     `When the task is fully complete, end your final message with the literal marker ${RUN_COMPLETE_MARKER} on its own line.`,
-});
+  });
 
 /**
  * Runs the agent loop for a room until it completes, is stopped, or runs out of
@@ -77,6 +85,10 @@ export const startRun = action({
     await ctx.runMutation(internal.roomsInternal.reserveRun, {
       roomId: args.roomId,
     });
+
+    const modelId = agentModelId();
+    console.log(`run model: ${modelId}`);
+    const warRoomAgent = createWarRoomAgent(modelId);
 
     let threadId = room.threadId;
     if (!threadId) {

@@ -54,6 +54,7 @@ export default function Home() {
   const rooms = useQuery(api.rooms.listRecentRooms, {}) as
     | RecentRoom[]
     | undefined;
+  const agentModel = useQuery(api.rooms.getAgentModel, {});
   const [title, setTitle] = useState("");
   const [taskPrompt, setTaskPrompt] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
@@ -201,7 +202,7 @@ export default function Home() {
             </div>
 
             <div className="lp-bar">
-              <span className="lp-model">claude-sonnet-5</span>
+              <span className="lp-model">{agentModel ?? " "}</span>
               <span className="lp-steer-note">anyone in the room can steer</span>
               <button
                 type="submit"

@@ -1332,6 +1332,9 @@ pre.file-body {
   font-family: var(--mono);
   font-size: 10.5px;
   color: var(--t4);
+  /* Holds its width before the model name resolves, so the bar does not jump. */
+  min-width: 104px;
+  text-align: center;
   padding: 3px 7px;
   border: 1px solid var(--line-soft);
   border-radius: 4px;

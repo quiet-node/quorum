@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { components } from "./_generated/api";
 import { listUIMessages, syncStreams, vStreamArgs } from "@convex-dev/agent";
+import { agentModelId } from "./model";
 
 // Muted, near-neutral identity colors: readable on near-black without
 // competing with the single emerald accent.
@@ -20,6 +21,12 @@ const COLOR_PALETTE = [
 const ACTIVE_WINDOW_MS = 25_000;
 
 const RECENT_ROOM_LIMIT = 12;
+
+/** Reports the model runs will use, so the UI can label it honestly. */
+export const getAgentModel = query({
+  args: {},
+  handler: async () => agentModelId(),
+});
 
 /**
  * Creates a room.
