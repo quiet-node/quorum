@@ -1,5 +1,8 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
+import { components } from "./_generated/api";
+import { listUIMessages, syncStreams, vStreamArgs } from "@convex-dev/agent";
 
 const COLOR_PALETTE = [
   "#f87171", // red
@@ -95,5 +98,34 @@ export const listParticipants = query({
       .collect();
     const cutoff = Date.now() - ACTIVE_WINDOW_MS;
     return participants.filter((p) => p.lastSeenAt >= cutoff);
+  },
+});
+
+export const addInterjection = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    authorName: v.string(),
+    text: v.string(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.insert("interjections", {
+      roomId: args.roomId,
+      authorName: args.authorName,
+      text: args.text,
+      consumed: false,
+    });
+  },
+});
+
+export const listThreadMessages = query({
+  args: {
+    threadId: v.string(),
+    paginationOpts: paginationOptsValidator,
+    streamArgs: vStreamArgs,
+  },
+  handler: async (ctx, args) => {
+    const paginated = await listUIMessages(ctx, components.agent, args);
+    const streams = await syncStreams(ctx, components.agent, args);
+    return { ...paginated, streams };
   },
 });
