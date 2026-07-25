@@ -247,6 +247,21 @@ function diffStat(artifact: string | null) {
   return { adds, dels };
 }
 
+/**
+ * True only when the artifact carries real unified-diff hunk markers ("--- "
+ * paired with "+++ " or "@@"), not markdown prose or bullet lists that happen
+ * to start with "-" or "+".
+ */
+function isUnifiedDiff(artifact: string | null): boolean {
+  if (!artifact) return false;
+  const lines = artifact.split("\n");
+  const hasFileHeader = lines.some((line) => line.startsWith("--- "));
+  const hasHunk = lines.some(
+    (line) => line.startsWith("+++ ") || line.startsWith("@@"),
+  );
+  return hasFileHeader && hasHunk;
+}
+
 const FENCE_RE = /```[a-zA-Z]*\n([\s\S]*?)```/g;
 
 /** Splits the working draft into its diff hunks and its prose summary. */
@@ -475,8 +490,18 @@ export default function RoomPage() {
   const earlierSteers = feedData.earlier;
 
   const artifact = useMemo(() => extractLastArtifact(messages), [messages]);
-  const stat = useMemo(() => diffStat(artifact), [artifact]);
-  const { diffs, summary } = useMemo(() => splitArtifact(artifact), [artifact]);
+  const isDiffArtifact = useMemo(() => isUnifiedDiff(artifact), [artifact]);
+  const stat = useMemo(
+    () => (isDiffArtifact ? diffStat(artifact) : { adds: 0, dels: 0 }),
+    [artifact, isDiffArtifact],
+  );
+  const { diffs, summary } = useMemo(
+    () =>
+      isDiffArtifact
+        ? splitArtifact(artifact)
+        : { diffs: [] as string[], summary: (artifact ?? "").trim() },
+    [artifact, isDiffArtifact],
+  );
   const toolEvents = useMemo(
     () => feed.filter((i) => i.kind === "tool"),
     [feed],
