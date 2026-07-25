@@ -407,7 +407,9 @@ export default function RoomPage() {
   const { results: messages } = useUIMessages(
     api.rooms.listThreadMessages,
     room?.threadId ? { threadId: room.threadId } : "skip",
-    { initialNumItems: 50, stream: true },
+    // Load the entire session so steers interleave at their true positions;
+    // demo-scale threads are small enough that a full load is cheap.
+    { initialNumItems: 1000, stream: true },
   );
 
   const colorByName = useMemo(() => {
@@ -453,25 +455,9 @@ export default function RoomPage() {
         }
       });
     }
-    // The message list is paginated to a recent window, but interjections load
-    // in full. In-window steers interleave chronologically. Older steers would
-    // clump context-free at the top, so instead each author's LATEST off-window
-    // steer moves to a compact "earlier steers" strip above the feed (the rail
-    // links there), and older non-latest steers stay hidden entirely.
-    const oldestLoaded = items.length
-      ? Math.min(...items.map((i) => i.creationTime))
-      : 0;
-    const latestPerAuthor = new Map<string, string>();
-    for (const i of interjections ?? []) latestPerAuthor.set(i.authorName, i._id);
-    const keepAlways = new Set(latestPerAuthor.values());
-    const earlier: { key: string; authorName: string; text: string }[] = [];
+    // The full session is loaded, so steers interleave purely by time and sit
+    // exactly where they happened in the conversation.
     for (const i of interjections ?? []) {
-      if (items.length && i._creationTime < oldestLoaded) {
-        if (keepAlways.has(i._id)) {
-          earlier.push({ key: i._id, authorName: i.authorName, text: i.text });
-        }
-        continue;
-      }
       items.push({
         kind: "interjection",
         key: i._id,
@@ -481,7 +467,7 @@ export default function RoomPage() {
       });
     }
     items.sort((a, b) => a.creationTime - b.creationTime);
-    return { items, earlier };
+    return { items, earlier: [] };
   }, [messages, interjections]);
 
   const feed = feedData.items;
