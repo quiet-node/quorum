@@ -450,7 +450,15 @@ export default function RoomPage() {
         }
       });
     }
+    // The message list is paginated to a recent window, but interjections load
+    // in full. Steers older than the oldest loaded message have no surrounding
+    // context on screen and would clump at the top of the feed, so hide them;
+    // the participant rail still quotes every person's latest steer.
+    const oldestLoaded = items.length
+      ? Math.min(...items.map((i) => i.creationTime))
+      : 0;
     for (const i of interjections ?? []) {
+      if (items.length && i._creationTime < oldestLoaded) continue;
       items.push({
         kind: "interjection",
         key: i._id,
