@@ -1049,6 +1049,13 @@ export default function RoomPage() {
                   placeholder="Steer the agent…"
                   disabled={sending}
                 />
+                <button
+                  type="submit"
+                  className="send-btn"
+                  disabled={sending || !interjectionInput.trim()}
+                >
+                  Send
+                </button>
                 {running && (
                   <button
                     type="button"

@@ -1552,3 +1552,22 @@ pre.file-body {
 .wordmark-link:hover {
   color: var(--t0);
 }
+
+/* Visible submit affordance for the composer: mobile has no Cmd+Enter. */
+.send-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--sunken);
+  color: var(--t1);
+  font-family: var(--sans);
+  font-size: 11px;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.send-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
