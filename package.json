@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.30",
-    "@ai-sdk/fireworks": "^3.0.15",
+    "@ai-sdk/fireworks": "^2.0.70",
     "@convex-dev/agent": "^0.6.4",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@vercel/analytics": "^2.0.1",

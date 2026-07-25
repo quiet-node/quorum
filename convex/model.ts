@@ -28,19 +28,16 @@ export function agentModelId(): string {
  * chosen model needs isn't set on this deployment, so a misconfig surfaces as
  * the room's error banner instead of a silent hang mid-run.
  *
- * @ai-sdk/fireworks is published against the AI SDK's newer LanguageModelV4
- * provider spec, one generation ahead of the LanguageModelV3 spec that
- * @ai-sdk/anthropic and @convex-dev/agent are pinned to in this repo. The two
- * specs are wire-compatible for the doGenerate/doStream calls the agent makes,
- * so the cast below is a type-level bridge, not a behavior change.
+ * @ai-sdk/fireworks is pinned to the "ai-v6" dist-tag release, which targets
+ * the same @ai-sdk/provider version (3.0.14) as @ai-sdk/anthropic and
+ * @convex-dev/agent in this repo, so no type cast is needed.
  */
 export function languageModelForId(modelId: string): ReturnType<typeof anthropic> {
   if (modelId.startsWith(FIREWORKS_MODEL_PREFIX)) {
     if (!process.env.FIREWORKS_API_KEY) {
       throw new ConvexError("FIREWORKS_API_KEY is not set on this deployment");
     }
-    const fireworksModel = createFireworks({ apiKey: process.env.FIREWORKS_API_KEY })(modelId);
-    return fireworksModel as unknown as ReturnType<typeof anthropic>;
+    return createFireworks({ apiKey: process.env.FIREWORKS_API_KEY })(modelId);
   }
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new ConvexError("ANTHROPIC_API_KEY is not set on this deployment");
