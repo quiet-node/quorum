@@ -11,6 +11,7 @@ export default defineSchema({
       v.literal("error"),
       v.literal("done"),
     ),
+    threadId: v.optional(v.string()),
   }),
 
   participants: defineTable({
