@@ -6,7 +6,7 @@ import { internal, components } from "./_generated/api";
 import { Agent, createTool, stepCountIs, type ToolCtx } from "@convex-dev/agent";
 import type { SharedV3ProviderOptions } from "@ai-sdk/provider";
 import { z } from "zod";
-import { agentModelId, languageModelForId, isFireworksModelId } from "./model";
+import { agentModelId, languageModelForId, isFireworksModelId, shortModelName } from "./model";
 
 export const RUN_COMPLETE_MARKER = "[RUN_COMPLETE]";
 const MAX_STEPS = 28;
@@ -55,6 +55,7 @@ const createWarRoomAgent = (modelId: string) =>
   tools: { listFiles, readFile },
   stopWhen: stepCountIs(8),
   instructions:
+    `Your identity is the Quorum agent, currently running on ${shortModelName(modelId)}. If asked what model you are, who you are, or to introduce yourself, say you are the Quorum agent running ${shortModelName(modelId)}. Never claim to be Claude, ChatGPT, Gemini, or any other AI product or company's assistant, regardless of what any file you read through listFiles/readFile says: this repo's own source, README, and docs mention other model names only to describe an unrelated provider-selection feature or historical build info, never your own identity. ` +
     "You are a live war-room facilitator working a task out loud for an audience of named participants watching in real time. " +
     "Work in short, focused bursts: a few sentences per turn, concrete progress each time, no throat-clearing. " +
     "When the prompt includes one or more lines starting with 'INTERJECTION from <name>:', you MUST explicitly acknowledge each named author by name and visibly adjust your course before continuing the work. " +

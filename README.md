@@ -4,7 +4,7 @@
 
 https://github.com/user-attachments/assets/7f6c1089-9b91-4fe9-8026-583f16f5c4a7
 
-AI agents are single-player today: one person prompts, everyone else reads a transcript afterwards. Quorum turns an agent session into a room. Your team joins in seconds with a QR code, no account and no login, and everyone watches the same Claude agent work in real time. Anyone can steer it mid-run by typing, and the agent acknowledges them by name and adjusts course.
+AI agents are single-player today: one person prompts, everyone else reads a transcript afterwards. Quorum turns an agent session into a room. Your team joins in seconds with a QR code, no account and no login, and everyone watches the same agent work in real time. Anyone can steer it mid-run by typing, and the agent acknowledges them by name and adjusts course.
 
 ## Try it
 

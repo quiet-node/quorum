@@ -20,6 +20,26 @@ export const seedBatch = internalMutation({
   },
 });
 
+/**
+ * Deletes any repoFiles row whose path is not in keepPaths.
+ *
+ * seedBatch only upserts, so a file dropped from the tracked set (e.g.
+ * AGENTS.md, CLAUDE.md) would otherwise linger in the snapshot forever.
+ * Called once per seed run with the full current path list.
+ */
+export const pruneRepoFiles = internalMutation({
+  args: { keepPaths: v.array(v.string()) },
+  handler: async (ctx, args) => {
+    const keep = new Set(args.keepPaths);
+    const files = await ctx.db.query("repoFiles").collect();
+    for (const file of files) {
+      if (!keep.has(file.path)) {
+        await ctx.db.delete(file._id);
+      }
+    }
+  },
+});
+
 export const listRepoFiles = internalQuery({
   args: {},
   handler: async (ctx) => {

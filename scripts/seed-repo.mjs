@@ -23,7 +23,10 @@ const EXCLUDE_DIR_NAMES = new Set([
   "_generated",
   ".vercel",
 ]);
-const ROOT_FILES = ["README.md", "AGENTS.md", "CLAUDE.md", "package.json", "tsconfig.json"];
+// AGENTS.md/CLAUDE.md are agent-tooling docs, not product source: excluded so
+// the coding-mode snapshot can't leak legacy identity text into the agent's
+// own reads.
+const ROOT_FILES = ["README.md", "package.json", "tsconfig.json"];
 
 function isEnvPath(relPath) {
   const base = relPath.split("/").pop();
@@ -96,6 +99,21 @@ for (let i = 0; i < seeded.length; i += BATCH_SIZE) {
     throw new Error(`convex run failed on batch starting at index ${i}`);
   }
   console.log(`seeded batch ${i / BATCH_SIZE + 1} (${batch.length} files)`);
+}
+
+console.log("pruning stale paths...");
+const pruneResult = spawnSync(
+  convexBin,
+  [
+    "run",
+    "repoFiles:pruneRepoFiles",
+    JSON.stringify({ keepPaths: seeded.map((f) => f.path) }),
+    "--prod",
+  ],
+  { stdio: "inherit" },
+);
+if (pruneResult.status !== 0) {
+  throw new Error("convex run failed on pruneRepoFiles");
 }
 
 console.log("done:");

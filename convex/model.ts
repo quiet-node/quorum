@@ -25,6 +25,16 @@ export function agentModelId(): string {
 }
 
 /**
+ * Short, human-facing name for a model id, for use in the agent's own
+ * identity instructions. Fireworks ids are namespaced paths
+ * ("accounts/fireworks/models/glm-5p2"); only the last segment is
+ * presentable. Anthropic ids ("claude-sonnet-5") are already short.
+ */
+export function shortModelName(modelId: string): string {
+  return modelId.split("/").pop() ?? modelId;
+}
+
+/**
  * Resolves the AI SDK language model for a run from its model id.
  *
  * A Fireworks-hosted id (prefixed "accounts/fireworks/") routes through
