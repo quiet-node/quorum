@@ -2,9 +2,7 @@
 
 **One live AI agent. Your whole team steering.**
 
-Agent sessions are single-player today: one person prompts, everyone else reads the transcript afterwards. Quorum turns a run into a room. Scan a QR code, type a name, and you are in, no account and no login, watching the same Claude agent work token by token and steering it mid-run by typing an interjection the agent acknowledges by name.
-
-The demo task points the agent at a snapshot of this very repo. It explores with its own `listFiles` / `readFile` tools, narrates which files it is reading, and maintains a live working draft (a short PR description on top of a real unified diff) while the room redirects it.
+Agent sessions are single-player today: one person prompts, everyone else reads the transcript afterwards. Quorum turns a run into a room: scan a QR code, type a name, no account and no login, and you are watching the same Claude agent work live and steering it mid-run by typing an interjection it acknowledges by name. The demo task points the agent at a snapshot of this very repo, where it explores with its own `listFiles` / `readFile` tools and drafts a real unified diff while the room redirects it.
 
 ## Live demo
 
@@ -21,8 +19,7 @@ The repository was empty at kickoff. The first commit (`4177efc`, 7:22 PM, durin
 ## How it works
 
 - **Next.js 16 (App Router) on Vercel** for the room UI: live transcript, participant rail, artifact pane, QR invite.
-- **Convex** as the reactive backend. Every client subscribes to the same queries, so joins, interjections, run status, and the working draft land on every screen at once with no socket code.
-- **`@convex-dev/agent`** streams the model output as saved deltas, which is what makes one run watchable by many clients simultaneously rather than only by the browser that started it.
+- **Convex** as the reactive backend. Every client subscribes to the same queries, so joins, interjections, and run status land on every screen at once with no socket code, and `@convex-dev/agent` saves the model output as streamed deltas, which is what makes one run watchable by many clients at the same time rather than only by the browser that started it.
 - **Anthropic Claude** for the agent. The model id is read from `AGENT_MODEL` at run time (no redeploy to change it) and defaults to `claude-sonnet-5`.
 - **Hand-rolled steering queue.** The run is a loop of short agent steps. Between steps the server drains the unconsumed interjections for the room, prepends them to the next prompt as `INTERJECTION from <name>:` lines, and marks them consumed. That gap between steps is the co-steering mechanic.
 - **Server-side spend caps.** One transactional mutation (`reserveRun`) enforces 3 concurrent runs globally and 10 runs per room before flipping a room to running, so two racing clients cannot both slip past the cap. Stale slots expire so an abandoned run cannot hold capacity forever.
