@@ -12,6 +12,7 @@ export default defineSchema({
       v.literal("done"),
     ),
     threadId: v.optional(v.string()),
+    stopRequested: v.optional(v.boolean()),
   }),
 
   participants: defineTable({

@@ -1,4 +1,4 @@
-import { internalMutation, internalQuery } from "./_generated/server";
+import { internalMutation, internalQuery, query } from "./_generated/server";
 import { v } from "convex/values";
 
 export const seedBatch = internalMutation({
@@ -25,6 +25,27 @@ export const listRepoFiles = internalQuery({
   handler: async (ctx) => {
     const files = await ctx.db.query("repoFiles").collect();
     return files.map((f) => ({ path: f.path, bytes: f.content.length }));
+  },
+});
+
+export const listRepoFilePaths = query({
+  args: {},
+  handler: async (ctx) => {
+    const files = await ctx.db.query("repoFiles").collect();
+    return files
+      .map((f) => ({ path: f.path, bytes: f.content.length }))
+      .sort((a, b) => a.path.localeCompare(b.path));
+  },
+});
+
+export const getRepoFileContent = query({
+  args: { path: v.string() },
+  handler: async (ctx, args) => {
+    const file = await ctx.db
+      .query("repoFiles")
+      .withIndex("by_path", (q) => q.eq("path", args.path))
+      .unique();
+    return file ? file.content : null;
   },
 });
 

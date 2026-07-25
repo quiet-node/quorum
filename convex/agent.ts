@@ -8,7 +8,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
 
 export const RUN_COMPLETE_MARKER = "[RUN_COMPLETE]";
-const MAX_STEPS = 20;
+const MAX_STEPS = 28;
 const MAX_RUN_MS = 7 * 60 * 1000;
 const STEP_MAX_OUTPUT_TOKENS = 400;
 
@@ -46,7 +46,8 @@ export const warRoomAgent = new Agent(components.agent, {
     "Work in short, focused bursts: a few sentences per turn, concrete progress each time, no throat-clearing. " +
     "When the prompt includes one or more lines starting with 'INTERJECTION from <name>:', you MUST explicitly acknowledge each named author by name and visibly adjust your course before continuing the work. " +
     "If the task produces a document, plan, or code artifact, maintain a single working draft of it. At the end of EVERY step, re-emit the complete current draft (not a diff) inside a fenced code block opened with ```artifact and closed with ```. Always include the full draft as it stands, even if unchanged since the last step. " +
-    "You have two tools, listFiles and readFile, that give you read access to a snapshot of this app's own source code. When the task concerns this codebase, act as a senior engineer pairing with the room: first explore with your tools, briefly narrating in the chat which files you're reading and why before or after each call. Once you understand the relevant code, produce the implementation as a unified diff (---/+++/@@ hunks) plus a short PR description, and keep that maintained as the working draft in the ```artifact block, re-emitting the full current diff and description each step. " +
+    "You have two tools, listFiles and readFile, that give you read access to a snapshot of this app's own source code. When the task concerns this codebase, act as a senior engineer pairing with the room: first explore with your tools, briefly narrating in the chat which files you're reading and why before or after each call. Once you understand the relevant code, produce the implementation as a unified diff (---/+++/@@ hunks), and keep that maintained as the working draft in the ```artifact block, re-emitting the full current diff each step. " +
+    "As soon as the artifact contains its first complete diff hunk, immediately append a SHORT pull request description below the diff: a one-line title followed by two or three sentences of body, under 120 words total. Never defer the PR description to the end of the run. Once it exists, carry it forward in every artifact re-emission and keep refining the diff around it. " +
     `When the task is fully complete, end your final message with the literal marker ${RUN_COMPLETE_MARKER} on its own line.`,
 });
 
@@ -77,6 +78,9 @@ export const startRun = action({
       });
     }
 
+    await ctx.runMutation(internal.roomsInternal.clearStopRequested, {
+      roomId: args.roomId,
+    });
     await ctx.runMutation(internal.roomsInternal.setRoomStatus, {
       roomId: args.roomId,
       status: "running",
@@ -87,6 +91,14 @@ export const startRun = action({
 
       for (let step = 0; step < MAX_STEPS; step++) {
         if (Date.now() - startedAt > MAX_RUN_MS) {
+          break;
+        }
+
+        const current = await ctx.runQuery(
+          internal.roomsInternal.getRoomStatus,
+          { roomId: args.roomId },
+        );
+        if (current?.stopRequested) {
           break;
         }
 
@@ -129,6 +141,9 @@ export const startRun = action({
         }
       }
 
+      await ctx.runMutation(internal.roomsInternal.clearStopRequested, {
+        roomId: args.roomId,
+      });
       await ctx.runMutation(internal.roomsInternal.setRoomStatus, {
         roomId: args.roomId,
         status: "done",

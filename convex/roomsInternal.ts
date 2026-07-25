@@ -25,6 +25,15 @@ export const setRoomStatus = internalMutation({
   },
 });
 
+export const clearStopRequested = internalMutation({
+  args: {
+    roomId: v.id("rooms"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.roomId, { stopRequested: false });
+  },
+});
+
 export const setThreadId = internalMutation({
   args: {
     roomId: v.id("rooms"),

@@ -8,6 +8,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { QRCodeSVG } from "qrcode.react";
 
 type StoredIdentity = {
   participantId: Id<"participants">;
@@ -26,14 +27,14 @@ function loadIdentity(roomId: string): StoredIdentity | null {
 }
 
 const FALLBACK_COLORS = [
-  "#f87171",
-  "#fb923c",
-  "#fbbf24",
-  "#4ade80",
-  "#22d3ee",
-  "#60a5fa",
-  "#a78bfa",
-  "#f472b6",
+  "#9fb2ab",
+  "#a8a8b0",
+  "#b0a493",
+  "#94a3b2",
+  "#a9b09a",
+  "#b19aa8",
+  "#9aa7b0",
+  "#b0ab9a",
 ];
 
 function hashColor(name: string) {
@@ -42,6 +43,13 @@ function hashColor(name: string) {
     hash = (hash * 31 + name.charCodeAt(i)) | 0;
   }
   return FALLBACK_COLORS[Math.abs(hash) % FALLBACK_COLORS.length];
+}
+
+function initials(name: string) {
+  const parts = name.trim().split(/\s+/);
+  const raw =
+    parts.length > 1 ? parts[0][0] + parts[1][0] : name.trim().slice(0, 2);
+  return raw.toUpperCase();
 }
 
 const ARTIFACT_RE = /```artifact\n([\s\S]*?)```/g;
@@ -60,7 +68,142 @@ function extractLastArtifact(
   return last;
 }
 
+// The agent re-emits the whole working draft inside a ```artifact fence every
+// step. The draft belongs in the right pane, not in the transcript prose.
+function stripArtifact(text: string) {
+  return text.replace(ARTIFACT_RE, "").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function clockTime(ms: number) {
+  return new Date(ms).toLocaleTimeString("en-US", { hour12: false });
+}
+
+function elapsedLabel(ms: number) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+/** Minimal shape of an AI SDK tool part; avoids fighting the UITools generics. */
+type ToolPart = {
+  type: string;
+  toolCallId?: string;
+  toolName?: string;
+  state?: string;
+  input?: unknown;
+  output?: unknown;
+  errorText?: string;
+};
+
+function toolNameOf(part: ToolPart) {
+  if (part.type === "dynamic-tool") return part.toolName ?? "tool";
+  return part.type.slice("tool-".length);
+}
+
+function toolLabel(part: ToolPart): { verb: string; arg: string } {
+  const name = toolNameOf(part);
+  const input = (part.input ?? {}) as Record<string, unknown>;
+  if (name === "readFile") {
+    return { verb: "Reading", arg: String(input.path ?? "") };
+  }
+  if (name === "listFiles") {
+    return { verb: "Listing", arg: "repo snapshot" };
+  }
+  return { verb: name, arg: JSON.stringify(input) };
+}
+
+function toolStat(part: ToolPart) {
+  if (part.state === "output-error") return "error";
+  if (typeof part.output !== "string") {
+    return part.state === "output-available" ? "done" : "running";
+  }
+  const lines = part.output.split("\n").length;
+  return `${lines} lines`;
+}
+
+function diffStat(artifact: string | null) {
+  if (!artifact) return { adds: 0, dels: 0 };
+  let adds = 0;
+  let dels = 0;
+  for (const line of artifact.split("\n")) {
+    if (line.startsWith("+") && !line.startsWith("+++")) adds++;
+    else if (line.startsWith("-") && !line.startsWith("---")) dels++;
+  }
+  return { adds, dels };
+}
+
+const FENCE_RE = /```[a-zA-Z]*\n([\s\S]*?)```/g;
+
+/** Splits the working draft into its diff blocks and its prose summary. */
+function splitArtifact(artifact: string | null) {
+  if (!artifact) return { diffs: [] as string[], summary: "" };
+  const diffs = [...artifact.matchAll(FENCE_RE)].map((m) => m[1].trimEnd());
+  const summary = artifact.replace(FENCE_RE, "").replace(/\n{3,}/g, "\n\n").trim();
+  if (diffs.length === 0 && /^(---|\+\+\+|@@)/m.test(artifact)) {
+    return { diffs: [artifact.trim()], summary: "" };
+  }
+  return { diffs, summary };
+}
+
+function diffTargetPath(diff: string) {
+  const match = diff.match(/^\+\+\+ [ab]?\/?(.+)$/m);
+  return match ? match[1].trim() : "unified diff";
+}
+
+type Dir = {
+  dirs: Map<string, Dir>;
+  files: { name: string; path: string; bytes: number }[];
+};
+
+function buildTree(files: { path: string; bytes: number }[]): Dir {
+  const root: Dir = { dirs: new Map(), files: [] };
+  for (const file of files) {
+    const segments = file.path.split("/");
+    let node = root;
+    for (const segment of segments.slice(0, -1)) {
+      let next = node.dirs.get(segment);
+      if (!next) {
+        next = { dirs: new Map(), files: [] };
+        node.dirs.set(segment, next);
+      }
+      node = next;
+    }
+    node.files.push({
+      name: segments[segments.length - 1],
+      path: file.path,
+      bytes: file.bytes,
+    });
+  }
+  return root;
+}
+
+function diffLineClass(line: string) {
+  if (line.startsWith("@@")) return "hunk";
+  if (line.startsWith("+++") || line.startsWith("---")) return "hunk";
+  if (line.startsWith("+")) return "add";
+  if (line.startsWith("-")) return "del";
+  return undefined;
+}
+
 const SCROLL_BOTTOM_THRESHOLD = 80;
+
+type FeedItem =
+  | {
+      kind: "prose";
+      key: string;
+      text: string;
+      creationTime: number;
+      msgKey: string;
+    }
+  | { kind: "tool"; key: string; part: ToolPart; creationTime: number }
+  | {
+      kind: "interjection";
+      key: string;
+      authorName: string;
+      text: string;
+      creationTime: number;
+    };
 
 export default function RoomPage() {
   const params = useParams<{ id: string }>();
@@ -69,10 +212,12 @@ export default function RoomPage() {
   const room = useQuery(api.rooms.getRoom, { roomId });
   const participants = useQuery(api.rooms.listParticipants, { roomId });
   const interjections = useQuery(api.rooms.listInterjections, { roomId });
+  const repoFilePaths = useQuery(api.repoFiles.listRepoFilePaths, {});
   const joinRoom = useMutation(api.rooms.joinRoom);
   const heartbeat = useMutation(api.rooms.heartbeat);
   const startRun = useAction(api.agent.startRun);
   const resetRoom = useMutation(api.rooms.resetRoom);
+  const requestStop = useMutation(api.rooms.requestStop);
   const addInterjection = useMutation(
     api.rooms.addInterjection,
   ).withOptimisticUpdate((localStore, args) => {
@@ -98,6 +243,17 @@ export default function RoomPage() {
     }
   });
   const [starting, setStarting] = useState(false);
+  const [stopping, setStopping] = useState(false);
+  const [tab, setTab] = useState<"diff" | "console" | "files">("diff");
+  const [openDirs, setOpenDirs] = useState<Record<string, boolean>>({});
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const selectedFile = useQuery(
+    api.repoFiles.getRepoFileContent,
+    selectedPath ? { path: selectedPath } : "skip",
+  );
+  const [workOpen, setWorkOpen] = useState(true);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const { results: messages } = useUIMessages(
     api.rooms.listThreadMessages,
@@ -115,26 +271,34 @@ export default function RoomPage() {
     return colorByName.get(name) ?? hashColor(name);
   }
 
-  type FeedItem =
-    | { kind: "message"; key: string; role: string; text: string; creationTime: number }
-    | {
-        kind: "interjection";
-        key: string;
-        authorName: string;
-        text: string;
-        creationTime: number;
-      };
-
   const feed = useMemo<FeedItem[]>(() => {
     const items: FeedItem[] = [];
     for (const m of messages ?? []) {
-      if (!m.text) continue;
-      items.push({
-        kind: "message",
-        key: m.key,
-        role: m.role,
-        text: m.text,
-        creationTime: m._creationTime,
+      if (m.role !== "assistant") continue;
+      const parts = (m.parts ?? []) as unknown as ToolPart[];
+      parts.forEach((part, index) => {
+        if (part.type === "text") {
+          const text = stripArtifact(
+            String((part as unknown as { text?: string }).text ?? ""),
+          );
+          if (!text) return;
+          items.push({
+            kind: "prose",
+            key: `${m.key}:${index}`,
+            msgKey: m.key,
+            text,
+            creationTime: m._creationTime,
+          });
+          return;
+        }
+        if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
+          items.push({
+            kind: "tool",
+            key: `${m.key}:${index}`,
+            part,
+            creationTime: m._creationTime,
+          });
+        }
       });
     }
     for (const i of interjections ?? []) {
@@ -151,6 +315,35 @@ export default function RoomPage() {
   }, [messages, interjections]);
 
   const artifact = useMemo(() => extractLastArtifact(messages), [messages]);
+  const stat = useMemo(() => diffStat(artifact), [artifact]);
+  const { diffs, summary } = useMemo(() => splitArtifact(artifact), [artifact]);
+  const toolEvents = useMemo(
+    () => feed.filter((i) => i.kind === "tool"),
+    [feed],
+  );
+  const tree = useMemo(
+    () => buildTree(repoFilePaths ?? []),
+    [repoFilePaths],
+  );
+
+  const latestSteerByName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const i of interjections ?? []) map.set(i.authorName, i.text);
+    return map;
+  }, [interjections]);
+
+  const running = room?.status === "running";
+
+  // Elapsed timer for the current run.
+  const runStartRef = useRef<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  if (running && runStartRef.current === null) runStartRef.current = Date.now();
+  if (!running && runStartRef.current !== null) runStartRef.current = null;
+  useEffect(() => {
+    if (!running) return;
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [running]);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -163,14 +356,8 @@ export default function RoomPage() {
   function handleScroll() {
     const el = scrollRef.current;
     if (!el) return;
-    const distanceFromBottom =
-      el.scrollHeight - el.scrollTop - el.clientHeight;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
     setIsAtBottom(distanceFromBottom < SCROLL_BOTTOM_THRESHOLD);
-  }
-
-  function jumpToBottom() {
-    setIsAtBottom(true);
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
   }
 
   async function handleStart() {
@@ -194,6 +381,16 @@ export default function RoomPage() {
     }
   }
 
+  async function handleStop() {
+    if (stopping) return;
+    setStopping(true);
+    try {
+      await requestStop({ roomId });
+    } finally {
+      setStopping(false);
+    }
+  }
+
   const [identity, setIdentity] = useState<StoredIdentity | null>(() =>
     loadIdentity(roomId),
   );
@@ -201,6 +398,11 @@ export default function RoomPage() {
   const [joining, setJoining] = useState(false);
   const [interjectionInput, setInterjectionInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [roomUrl, setRoomUrl] = useState("");
+
+  useEffect(() => {
+    setRoomUrl(window.location.href);
+  }, []);
 
   // Heartbeat while we have an identity.
   useEffect(() => {
@@ -247,41 +449,37 @@ export default function RoomPage() {
   }
 
   if (room === undefined) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-sm text-zinc-500">
-        Loading…
-      </div>
-    );
+    return <div className="landing">Loading…</div>;
   }
 
   if (room === null) {
-    return (
-      <div className="flex flex-1 items-center justify-center text-sm text-zinc-500">
-        Room not found.
-      </div>
-    );
+    return <div className="landing">Room not found.</div>;
   }
 
   if (!identity) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center px-4 py-16">
-        <div className="w-full max-w-sm">
-          <h1 className="mb-1 text-xl font-semibold">{room.title}</h1>
-          <p className="mb-6 text-sm text-zinc-400">Enter a name to join.</p>
-          <form onSubmit={handleJoin} className="flex flex-col gap-3">
-            <input
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              placeholder="Your name"
-              className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm outline-none focus:border-zinc-500"
-              required
-              autoFocus
-            />
-            <button
-              type="submit"
-              disabled={joining}
-              className="rounded-md bg-zinc-50 px-4 py-2 text-sm font-medium text-zinc-950 disabled:opacity-50"
-            >
+      <div className="landing">
+        <div className="landing-col">
+          <div className="landing-mark">quorum</div>
+          <p className="landing-sub">
+            {room.title} — enter a name so the room knows who steered what.
+          </p>
+          <form onSubmit={handleJoin}>
+            <div className="field-block">
+              <label className="landing-label" htmlFor="name">
+                Your name
+              </label>
+              <input
+                id="name"
+                className="input"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                placeholder="Logan"
+                required
+                autoFocus
+              />
+            </div>
+            <button type="submit" className="btn-primary" disabled={joining}>
               {joining ? "Joining…" : "Join room"}
             </button>
           </form>
@@ -290,161 +488,441 @@ export default function RoomPage() {
     );
   }
 
-  const artifactBody = artifact ? (
-    <div className="prose prose-invert prose-sm max-w-none prose-pre:bg-zinc-900 prose-pre:text-zinc-200">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{artifact}</ReactMarkdown>
+  const people = participants ?? [];
+  const statusDot =
+    room.status === "running"
+      ? "dot dot-em"
+      : room.status === "error"
+        ? "dot dot-amber"
+        : "dot dot-idle";
+
+  const diffPane =
+    diffs.length === 0 && !summary ? (
+      <div className="empty">Nothing drafted yet.</div>
+    ) : (
+      <>
+        {diffs.map((diff, i) => (
+          <div className="card" key={i}>
+            <div className="card-head">
+              <span>{diffTargetPath(diff)}</span>
+              {i === 0 && (
+                <span className="stat">
+                  <b>+{stat.adds}</b> <s>−{stat.dels}</s>
+                </span>
+              )}
+            </div>
+            <pre className="diff">
+              {diff.split("\n").map((line, j) => (
+                <span key={j} className={diffLineClass(line)}>
+                  {line || " "}
+                </span>
+              ))}
+            </pre>
+          </div>
+        ))}
+        {summary && (
+          <div className="card">
+            <div className="card-head">
+              <span>Summary</span>
+            </div>
+            <div className="pr">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {summary}
+              </ReactMarkdown>
+            </div>
+          </div>
+        )}
+      </>
+    );
+
+  const consolePane = (
+    <div className="card">
+      <div className="console">
+        {toolEvents.length === 0 && (
+          <div className="console-out">no tool calls yet</div>
+        )}
+        {toolEvents.map((item) => {
+          if (item.kind !== "tool") return null;
+          const { verb, arg } = toolLabel(item.part);
+          const failed = item.part.state === "output-error";
+          return (
+            <div key={item.key}>
+              <div className="console-line">
+                <span className="sig">$</span>
+                <span className="cmd">
+                  {toolNameOf(item.part)} {arg}
+                </span>
+              </div>
+              <div className={failed ? "console-out err" : "console-out"}>
+                {failed
+                  ? (item.part.errorText ?? "error")
+                  : `${verb.toLowerCase()} → ${toolStat(item.part)}`}
+              </div>
+            </div>
+          );
+        })}
+        {running && (
+          <div className="console-cursor">
+            <span className="sig">$</span>
+            <span className="blink">▌</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  function renderDir(dir: Dir, prefix: string, depth: number) {
+    const dirNames = [...dir.dirs.keys()].sort((a, b) => a.localeCompare(b));
+    const files = [...dir.files].sort((a, b) => a.name.localeCompare(b.name));
+    return (
+      <>
+        {dirNames.map((name) => {
+          const path = prefix ? `${prefix}/${name}` : name;
+          const open = openDirs[path] ?? depth === 0;
+          return (
+            <div key={path}>
+              <button
+                className="tree-row dir"
+                style={{ paddingLeft: 8 + depth * 12 }}
+                onClick={() =>
+                  setOpenDirs((prev) => ({ ...prev, [path]: !open }))
+                }
+              >
+                <span className="chev">{open ? "▾" : "▸"}</span>
+                <span>{name}</span>
+              </button>
+              {open && renderDir(dir.dirs.get(name)!, path, depth + 1)}
+            </div>
+          );
+        })}
+        {files.map((file) => (
+          <button
+            key={file.path}
+            className="tree-row"
+            style={{ paddingLeft: 8 + depth * 12 + 14 }}
+            onClick={() => setSelectedPath(file.path)}
+          >
+            <span>{file.name}</span>
+            <span className="bytes">{file.bytes}B</span>
+          </button>
+        ))}
+      </>
+    );
+  }
+
+  const filesPane = selectedPath ? (
+    <div className="card">
+      <div className="file-head">
+        <button className="file-back" onClick={() => setSelectedPath(null)}>
+          ← files
+        </button>
+        <span>{selectedPath}</span>
+      </div>
+      <pre className="file-body">
+        {selectedFile === undefined
+          ? "loading…"
+          : (selectedFile ?? "file not in snapshot")}
+      </pre>
     </div>
   ) : (
-    <span className="text-zinc-500">No draft yet.</span>
+    <div className="card">
+      {(repoFilePaths ?? []).length === 0 ? (
+        <div className="empty" style={{ padding: "12px" }}>
+          No repo snapshot loaded.
+        </div>
+      ) : (
+        <div className="tree">{renderDir(tree, "", 0)}</div>
+      )}
+    </div>
   );
 
   return (
-    <div className="flex flex-1 flex-col">
-      <header className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
-        <div>
-          <h1 className="text-base font-semibold">{room.title}</h1>
-          <span
-            className={`mt-1 inline-block rounded-full px-2 py-0.5 text-xs ${
-              room.status === "running"
-                ? "bg-emerald-900 text-emerald-300"
-                : room.status === "error"
-                  ? "bg-red-900 text-red-300"
-                  : room.status === "done"
-                    ? "bg-zinc-800 text-zinc-300"
-                    : "bg-zinc-800 text-zinc-400"
-            }`}
-          >
-            {room.status}
-          </span>
-        </div>
+    <div className="app">
+      <header className="topbar">
+        <span className="wordmark">quorum</span>
+        <span className="crumb">
+          <b>quiet-node/quorum</b> · main
+        </span>
+        <span className="spacer" />
+        <span className="top-meta">
+          turn {(messages ?? []).length} · {people.length} in room
+        </span>
         {room.status === "idle" && (
           <button
+            className="btn-ghost"
             onClick={handleStart}
             disabled={starting}
-            className="rounded-md bg-zinc-50 px-4 py-2 text-sm font-medium text-zinc-950 disabled:opacity-50"
           >
             {starting ? "Starting…" : "Start"}
           </button>
         )}
         {(room.status === "done" || room.status === "error") && (
           <button
+            className="btn-ghost"
             onClick={handleNewRun}
             disabled={starting}
-            className="rounded-md bg-zinc-50 px-4 py-2 text-sm font-medium text-zinc-950 disabled:opacity-50"
           >
             New run
           </button>
         )}
+        <button className="btn-ghost" onClick={() => setInviteOpen(true)}>
+          Invite
+        </button>
       </header>
 
-      <div className="flex flex-wrap gap-2 border-b border-zinc-800 px-4 py-3">
-        {(participants ?? []).map((p) => (
-          <div key={p._id} className="flex items-center gap-1.5">
-            <span
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ backgroundColor: p.color }}
-            />
-            <span className="text-xs text-zinc-400">{p.name}</span>
+      <div className="shell">
+        <div className="strip">
+          {people.map((p) => (
+            <span key={p._id} className="s-item">
+              <i className="av" style={{ background: p.color }}>
+                {initials(p.name)}
+              </i>
+              <span className="s-name">{p.name}</span>
+            </span>
+          ))}
+          <span className="s-legend">
+            <i className={statusDot} />
+            {room.status}
+          </span>
+        </div>
+
+        <aside className="side">
+          <div className="side-head">
+            <div className="side-room">{room.title}</div>
+            <div className="side-sub">
+              <i className={statusDot} /> {room.status}
+              {running && runStartRef.current !== null && (
+                <> · {elapsedLabel(now - runStartRef.current)}</>
+              )}
+            </div>
           </div>
-        ))}
+
+          <div className="side-scroll">
+            <div className="side-label">In room · {people.length}</div>
+            {people.map((p) => {
+              const steer = latestSteerByName.get(p.name);
+              return (
+                <div
+                  key={p._id}
+                  className={
+                    p.name === identity.name ? "person self" : "person"
+                  }
+                >
+                  <i className="av" style={{ background: p.color }}>
+                    {initials(p.name)}
+                  </i>
+                  <div>
+                    <div className="person-name">
+                      {p.name}
+                      {p.name === identity.name && (
+                        <span className="you">you</span>
+                      )}
+                    </div>
+                    {steer ? (
+                      <div className="person-steer">{steer}</div>
+                    ) : (
+                      <div className="person-idle">watching · no steers yet</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="side-foot">
+            <div className="legend">
+              <i className="dot dot-em" /> running — agent has the turn
+            </div>
+            <div className="legend">
+              <i className="dot dot-amber" /> awaiting — agent waiting on a steer
+            </div>
+          </div>
+        </aside>
+
+        <section className="center">
+          <div className="center-head">
+            <span className="center-title">Agent transcript</span>
+            <span className="spacer" />
+            <span className={running ? "pill live" : "pill"}>
+              <i className={statusDot} /> {room.status}
+            </span>
+          </div>
+
+          <div className="scroll" ref={scrollRef} onScroll={handleScroll}>
+            <div className="col">
+              {feed.length === 0 && (
+                <div className="empty">
+                  {room.status === "idle"
+                    ? "Waiting to start…"
+                    : "Waiting for agent…"}
+                </div>
+              )}
+
+              {feed.map((item) => {
+                if (item.kind === "interjection") {
+                  return (
+                    <div
+                      key={item.key}
+                      className="steer"
+                      style={{ borderLeftColor: colorForName(item.authorName) }}
+                    >
+                      <div className="steer-who">{item.authorName} steered</div>
+                      <div className="steer-text">{item.text}</div>
+                    </div>
+                  );
+                }
+                if (item.kind === "tool") {
+                  const { verb, arg } = toolLabel(item.part);
+                  const open = expanded[item.key];
+                  const output =
+                    typeof item.part.output === "string"
+                      ? item.part.output
+                      : JSON.stringify(item.part.output ?? {}, null, 2);
+                  return (
+                    <div key={item.key}>
+                      <button
+                        className="tool"
+                        onClick={() =>
+                          setExpanded((prev) => ({
+                            ...prev,
+                            [item.key]: !prev[item.key],
+                          }))
+                        }
+                      >
+                        <span className="chev">{open ? "▾" : "▸"}</span>
+                        <span className="tool-verb">{verb}</span>
+                        <span className="tool-arg">{arg}</span>
+                        <span className="tool-stat">{toolStat(item.part)}</span>
+                      </button>
+                      {open && (
+                        <div className="tool-body">
+                          {item.part.errorText ?? output}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+                return (
+                  <div key={item.key} className="msg">
+                    <div className="msg-head">
+                      <span className="msg-who">claude</span>
+                      <span className="msg-ts">
+                        {clockTime(item.creationTime)}
+                      </span>
+                    </div>
+                    <div className="prose">{item.text}</div>
+                  </div>
+                );
+              })}
+
+              {running && runStartRef.current !== null && (
+                <div className="working">
+                  <i className="spark" />
+                  Working<span>…</span>
+                  <span className="elapsed">
+                    {elapsedLabel(now - runStartRef.current)}
+                  </span>
+                  <span className="esc">anyone can steer</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <footer className="composer">
+            <form className="composer-inner" onSubmit={handleSendInterjection}>
+              <div className="field">
+                <span className="caret">&gt;</span>
+                <input
+                  className="field-text"
+                  value={interjectionInput}
+                  onChange={(e) => setInterjectionInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                      handleSendInterjection(e);
+                    }
+                  }}
+                  placeholder="Steer the agent…"
+                  disabled={sending}
+                />
+                <button
+                  type="button"
+                  className="stop"
+                  onClick={handleStop}
+                  disabled={!running || stopping}
+                >
+                  <i /> Stop
+                </button>
+              </div>
+              <div className="composer-meta">
+                <span>claude-sonnet-5</span>
+                <span>·</span>
+                <span>anyone in the room can steer</span>
+                <span className="spacer" />
+                <span>⌘↵ send</span>
+              </div>
+            </form>
+          </footer>
+        </section>
+
+        <aside className={workOpen ? "work open" : "work"}>
+          <div className="tabs">
+            <button
+              className={tab === "diff" ? "tab on" : "tab"}
+              onClick={() => setTab("diff")}
+            >
+              Diff
+              <span className="count">
+                {stat.adds > 0 || stat.dels > 0
+                  ? `+${stat.adds}/−${stat.dels}`
+                  : "0"}
+              </span>
+            </button>
+            <button
+              className={tab === "console" ? "tab on" : "tab"}
+              onClick={() => setTab("console")}
+            >
+              Console
+              <span className="count">{toolEvents.length}</span>
+            </button>
+            <button
+              className={tab === "files" ? "tab on" : "tab"}
+              onClick={() => setTab("files")}
+            >
+              Files
+              <span className="count">{(repoFilePaths ?? []).length}</span>
+            </button>
+            <div className="tabs-right">
+              <button
+                className="work-toggle"
+                onClick={() => setWorkOpen((v) => !v)}
+              >
+                {workOpen ? "tap to collapse" : "tap to expand"}
+              </button>
+            </div>
+          </div>
+
+          <div className="work-scroll">
+            {tab === "diff" ? diffPane : tab === "console" ? consolePane : filesPane}
+          </div>
+        </aside>
       </div>
 
-      {room.status === "error" && (
-        <div className="flex items-center justify-between border-b border-red-900 bg-red-950 px-4 py-2 text-sm text-red-300">
-          <span>Run hit an error.</span>
-          <button
-            onClick={handleStart}
-            disabled={starting}
-            className="rounded-md bg-red-800 px-3 py-1 text-xs font-medium text-red-100 disabled:opacity-50"
-          >
-            Retry
-          </button>
+      {inviteOpen && (
+        <div className="overlay" onClick={() => setInviteOpen(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-title">Scan to join this room</div>
+            <div className="qr">
+              {roomUrl && (
+                <QRCodeSVG value={roomUrl} size={340} level="M" marginSize={0} />
+              )}
+            </div>
+            <div className="modal-url">{roomUrl}</div>
+            <button className="btn-ghost" onClick={() => setInviteOpen(false)}>
+              Close
+            </button>
+          </div>
         </div>
       )}
-
-      {/* Mobile artifact pane: collapsible */}
-      <details className="border-b border-zinc-800 md:hidden">
-        <summary className="cursor-pointer select-none px-4 py-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-          Working draft
-        </summary>
-        <div className="max-h-64 overflow-y-auto px-4 py-3 text-sm">
-          {artifactBody}
-        </div>
-      </details>
-
-      <div className="flex flex-1 overflow-hidden">
-        <div className="relative flex flex-1 flex-col overflow-hidden">
-          <main
-            ref={scrollRef}
-            onScroll={handleScroll}
-            className="flex flex-1 flex-col gap-3 overflow-y-auto px-4 py-6"
-          >
-            {feed.length === 0 && (
-              <div className="flex flex-1 items-center justify-center text-sm text-zinc-500">
-                {room.status === "idle"
-                  ? "Waiting to start…"
-                  : "Waiting for agent…"}
-              </div>
-            )}
-            {feed.map((item) =>
-              item.kind === "interjection" ? (
-                <div
-                  key={item.key}
-                  className="self-start rounded-lg border-l-4 bg-zinc-900 px-3 py-2 text-sm"
-                  style={{ borderColor: colorForName(item.authorName) }}
-                >
-                  <span
-                    className="font-semibold"
-                    style={{ color: colorForName(item.authorName) }}
-                  >
-                    {item.authorName}
-                  </span>{" "}
-                  <span className="text-zinc-400">steered:</span>{" "}
-                  <span className="text-zinc-200">{item.text}</span>
-                </div>
-              ) : (
-                <div key={item.key} className="whitespace-pre-wrap text-sm">
-                  <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-zinc-500">
-                    {item.role === "assistant" ? "Agent" : item.role}
-                  </span>
-                  {item.text}
-                </div>
-              ),
-            )}
-          </main>
-          {!isAtBottom && (
-            <button
-              onClick={jumpToBottom}
-              className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-950 shadow-lg"
-            >
-              Jump to bottom
-            </button>
-          )}
-
-          <form
-            onSubmit={handleSendInterjection}
-            className="border-t border-zinc-800 px-4 py-3"
-          >
-            <input
-              value={interjectionInput}
-              onChange={(e) => setInterjectionInput(e.target.value)}
-              placeholder="Steer the agent…"
-              disabled={sending}
-              className="w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm outline-none focus:border-zinc-500 disabled:opacity-50"
-            />
-          </form>
-        </div>
-
-        {/* Desktop artifact pane */}
-        <div className="hidden w-96 flex-col overflow-hidden border-l border-zinc-800 md:flex">
-          <div className="border-b border-zinc-800 px-4 py-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-            Working draft
-          </div>
-          <div className="flex-1 overflow-y-auto px-4 py-3 text-sm">
-            {artifactBody}
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

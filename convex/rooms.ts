@@ -4,15 +4,17 @@ import { paginationOptsValidator } from "convex/server";
 import { components } from "./_generated/api";
 import { listUIMessages, syncStreams, vStreamArgs } from "@convex-dev/agent";
 
+// Muted, near-neutral identity colors: readable on near-black without
+// competing with the single emerald accent.
 const COLOR_PALETTE = [
-  "#f87171", // red
-  "#fb923c", // orange
-  "#fbbf24", // amber
-  "#4ade80", // green
-  "#22d3ee", // cyan
-  "#60a5fa", // blue
-  "#a78bfa", // violet
-  "#f472b6", // pink
+  "#9fb2ab",
+  "#a8a8b0",
+  "#b0a493",
+  "#94a3b2",
+  "#a9b09a",
+  "#b19aa8",
+  "#9aa7b0",
+  "#b0ab9a",
 ];
 
 const ACTIVE_WINDOW_MS = 25_000;
@@ -67,7 +69,7 @@ export const resetRoom = mutation({
     roomId: v.id("rooms"),
   },
   handler: async (ctx, args) => {
-    await ctx.db.patch(args.roomId, { status: "idle" });
+    await ctx.db.patch(args.roomId, { status: "idle", stopRequested: false });
     const interjections = await ctx.db
       .query("interjections")
       .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
@@ -75,6 +77,15 @@ export const resetRoom = mutation({
     for (const interjection of interjections) {
       await ctx.db.patch(interjection._id, { consumed: true });
     }
+  },
+});
+
+export const requestStop = mutation({
+  args: {
+    roomId: v.id("rooms"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.roomId, { stopRequested: true });
   },
 });
 

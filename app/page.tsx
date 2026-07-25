@@ -45,60 +45,63 @@ export default function Home() {
   }
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center px-4 py-16">
-      <div className="w-full max-w-md">
-        <h1 className="mb-2 text-2xl font-semibold">War Room</h1>
-        <p className="mb-8 text-sm text-zinc-400">
-          Spin up a room, watch Claude work, steer it together.
+    <div className="landing">
+      <div className="landing-col">
+        <div className="landing-mark">quorum</div>
+        <p className="landing-sub">
+          One agent, a room full of people steering it. Open a room, share the
+          QR, and everyone watches the same run in real time.
         </p>
-        <div className="mb-4 flex flex-wrap gap-2">
-          {TEMPLATES.map((template) => (
+
+        <span className="landing-label">Start from</span>
+        <div className="tpl-row">
+          {TEMPLATES.map((template, i) => (
             <button
               key={template.label}
               type="button"
               onClick={() => applyTemplate(template)}
-              className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300 hover:border-zinc-500 hover:text-zinc-50"
+              className={i === 0 ? "tpl primary" : "tpl"}
             >
               {template.label}
             </button>
           ))}
         </div>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="title" className="text-sm text-zinc-400">
+
+        <form onSubmit={handleSubmit}>
+          <div className="field-block">
+            <label className="landing-label" htmlFor="title">
               Room title
             </label>
             <input
               id="title"
+              className="input"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Launch night"
-              className="rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm outline-none focus:border-zinc-500"
               required
             />
           </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="taskPrompt" className="text-sm text-zinc-400">
+          <div className="field-block">
+            <label className="landing-label" htmlFor="taskPrompt">
               Task prompt
             </label>
             <textarea
               id="taskPrompt"
+              className="input mono"
               value={taskPrompt}
               onChange={(e) => setTaskPrompt(e.target.value)}
               placeholder="What should the agent work on?"
               rows={4}
-              className="resize-none rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+              style={{ resize: "none" }}
               required
             />
           </div>
-          <button
-            type="submit"
-            disabled={submitting}
-            className="mt-2 rounded-md bg-zinc-50 px-4 py-2 text-sm font-medium text-zinc-950 disabled:opacity-50"
-          >
-            {submitting ? "Creating…" : "Create room"}
+          <button type="submit" className="btn-primary" disabled={submitting}>
+            {submitting ? "Creating…" : "Open room"}
           </button>
         </form>
+
+        <div className="landing-foot">claude-sonnet-5 · anyone can steer</div>
       </div>
     </div>
   );
