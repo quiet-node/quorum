@@ -420,7 +420,10 @@ export default function RoomPage() {
     return colorByName.get(name) ?? hashColor(name);
   }
 
-  const feed = useMemo<FeedItem[]>(() => {
+  const feedData = useMemo<{
+    items: FeedItem[];
+    earlier: { key: string; authorName: string; text: string }[];
+  }>(() => {
     const items: FeedItem[] = [];
     for (const m of messages ?? []) {
       if (m.role !== "assistant") continue;
@@ -451,23 +454,24 @@ export default function RoomPage() {
       });
     }
     // The message list is paginated to a recent window, but interjections load
-    // in full. Steers older than the oldest loaded message have no surrounding
-    // context on screen and would clump at the top of the feed, so hide them,
-    // EXCEPT each author's latest steer: the rail links to it, so it must
-    // always exist in the feed as a jump target.
+    // in full. In-window steers interleave chronologically. Older steers would
+    // clump context-free at the top, so instead each author's LATEST off-window
+    // steer moves to a compact "earlier steers" strip above the feed (the rail
+    // links there), and older non-latest steers stay hidden entirely.
     const oldestLoaded = items.length
       ? Math.min(...items.map((i) => i.creationTime))
       : 0;
     const latestPerAuthor = new Map<string, string>();
     for (const i of interjections ?? []) latestPerAuthor.set(i.authorName, i._id);
     const keepAlways = new Set(latestPerAuthor.values());
+    const earlier: { key: string; authorName: string; text: string }[] = [];
     for (const i of interjections ?? []) {
-      if (
-        items.length &&
-        i._creationTime < oldestLoaded &&
-        !keepAlways.has(i._id)
-      )
+      if (items.length && i._creationTime < oldestLoaded) {
+        if (keepAlways.has(i._id)) {
+          earlier.push({ key: i._id, authorName: i.authorName, text: i.text });
+        }
         continue;
+      }
       items.push({
         kind: "interjection",
         key: i._id,
@@ -477,8 +481,11 @@ export default function RoomPage() {
       });
     }
     items.sort((a, b) => a.creationTime - b.creationTime);
-    return items;
+    return { items, earlier };
   }, [messages, interjections]);
+
+  const feed = feedData.items;
+  const earlierSteers = feedData.earlier;
 
   const artifact = useMemo(() => extractLastArtifact(messages), [messages]);
   const stat = useMemo(() => diffStat(artifact), [artifact]);
@@ -1014,6 +1021,28 @@ export default function RoomPage() {
                 <div className="task-label">Task</div>
                 <div className="task-text">{room.taskPrompt}</div>
               </div>
+
+              {earlierSteers.length > 0 && (
+                <div className="earlier">
+                  <div className="earlier-label">Earlier steers</div>
+                  {earlierSteers.map((s) => (
+                    <div
+                      key={s.key}
+                      className="earlier-row"
+                      data-steer-author={s.authorName}
+                      style={
+                        {
+                          "--steer-color": colorForName(s.authorName),
+                        } as React.CSSProperties
+                      }
+                    >
+                      <i className="earlier-dot" />
+                      <span className="earlier-name">{s.authorName}</span>
+                      <span className="earlier-text">{s.text}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {feed.length === 0 && (
                 <div className="empty">
