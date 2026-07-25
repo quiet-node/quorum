@@ -26,7 +26,7 @@ Note: the hosted demo runs on an event-scoped API key that may expire; run local
 
 - **Next.js (App Router) on Vercel** renders the room UI: transcript, participant rail, workspace pane, QR invite.
 - **Convex** is the reactive backend. Every client subscribes to the same queries, so joins, steers, and run status update on all screens at once. `@convex-dev/agent` persists the model output as streamed deltas, which is what makes one run watchable by any number of clients.
-- **Anthropic Claude** powers the agent. The model resolves from the `AGENT_MODEL` environment variable at run time and defaults to `claude-sonnet-5`.
+- **Provider-agnostic model.** The `AGENT_MODEL` environment variable picks both the model and the provider at run time: an Anthropic id (e.g. `claude-sonnet-5`, the default) routes through Anthropic Claude, and a Fireworks id (`accounts/fireworks/models/...`, e.g. `accounts/fireworks/models/minimax-m2p7`) routes through Fireworks AI.
 - **The steering mechanic** is a hand-rolled queue: runs execute as a loop of short agent steps, and between steps the server drains unconsumed interjections into the next prompt as `INTERJECTION from <name>:` lines. A message sent into an idle or finished room schedules a fresh run automatically.
 
 ## Run locally
@@ -39,8 +39,9 @@ npm run dev
 
 Environment, set on the Convex deployment:
 
-- `ANTHROPIC_API_KEY` (required)
 - `AGENT_MODEL` (optional, defaults to `claude-sonnet-5`)
+- `ANTHROPIC_API_KEY` (required when `AGENT_MODEL` is an Anthropic id)
+- `FIREWORKS_API_KEY` (required when `AGENT_MODEL` is a Fireworks id, `accounts/fireworks/models/...`)
 
 Coding mode needs the repository snapshot seeded into the `repoFiles` table: `node scripts/seed-repo.mjs`. Other room templates work without it.
 

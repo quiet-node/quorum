@@ -1,5 +1,12 @@
+import { ConvexError } from "convex/values";
+import { anthropic } from "@ai-sdk/anthropic";
+import { createFireworks } from "@ai-sdk/fireworks";
+
 /** Model used when AGENT_MODEL is not set on the deployment. */
 export const DEFAULT_AGENT_MODEL = "claude-sonnet-5";
+
+/** Prefix identifying a Fireworks-hosted model id, e.g. "accounts/fireworks/models/minimax-m2p7". */
+const FIREWORKS_MODEL_PREFIX = "accounts/fireworks/";
 
 /**
  * Resolves the model id for a run.
@@ -10,4 +17,33 @@ export const DEFAULT_AGENT_MODEL = "claude-sonnet-5";
  */
 export function agentModelId(): string {
   return process.env.AGENT_MODEL ?? DEFAULT_AGENT_MODEL;
+}
+
+/**
+ * Resolves the AI SDK language model for a run from its model id.
+ *
+ * A Fireworks-hosted id (prefixed "accounts/fireworks/") routes through
+ * @ai-sdk/fireworks; every other id keeps the existing Anthropic path. Throws
+ * a ConvexError up front, before any run starts, if the provider key the
+ * chosen model needs isn't set on this deployment, so a misconfig surfaces as
+ * the room's error banner instead of a silent hang mid-run.
+ *
+ * @ai-sdk/fireworks is published against the AI SDK's newer LanguageModelV4
+ * provider spec, one generation ahead of the LanguageModelV3 spec that
+ * @ai-sdk/anthropic and @convex-dev/agent are pinned to in this repo. The two
+ * specs are wire-compatible for the doGenerate/doStream calls the agent makes,
+ * so the cast below is a type-level bridge, not a behavior change.
+ */
+export function languageModelForId(modelId: string): ReturnType<typeof anthropic> {
+  if (modelId.startsWith(FIREWORKS_MODEL_PREFIX)) {
+    if (!process.env.FIREWORKS_API_KEY) {
+      throw new ConvexError("FIREWORKS_API_KEY is not set on this deployment");
+    }
+    const fireworksModel = createFireworks({ apiKey: process.env.FIREWORKS_API_KEY })(modelId);
+    return fireworksModel as unknown as ReturnType<typeof anthropic>;
+  }
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new ConvexError("ANTHROPIC_API_KEY is not set on this deployment");
+  }
+  return anthropic(modelId);
 }

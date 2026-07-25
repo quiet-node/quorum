@@ -274,7 +274,7 @@ export default function Home() {
             </div>
 
             <div className="lp-bar">
-              <span className="lp-model">{agentModel ?? " "}</span>
+              <span className="lp-model">{agentModel?.shortName ?? " "}</span>
               <span className="lp-steer-note">anyone in the room can steer</span>
               <button
                 type="submit"

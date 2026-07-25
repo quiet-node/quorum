@@ -22,10 +22,21 @@ const ACTIVE_WINDOW_MS = 25_000;
 
 const RECENT_ROOM_LIMIT = 12;
 
-/** Reports the model runs will use, so the UI can label it honestly. */
+/**
+ * Reports the model runs will use, so the UI can label it honestly.
+ *
+ * Returns both the raw model id (used for logging and diagnostics) and a
+ * short display name (the basename after the last "/"), since a
+ * Fireworks-hosted id like "accounts/fireworks/models/minimax-m2p7" is too
+ * long for the composer's model tag.
+ */
 export const getAgentModel = query({
   args: {},
-  handler: async () => agentModelId(),
+  handler: async () => {
+    const raw = agentModelId();
+    const shortName = raw.slice(raw.lastIndexOf("/") + 1);
+    return { raw, shortName };
+  },
 });
 
 /**

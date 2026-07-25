@@ -4,9 +4,8 @@ import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { internal, components } from "./_generated/api";
 import { Agent, createTool, stepCountIs, type ToolCtx } from "@convex-dev/agent";
-import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
-import { agentModelId } from "./model";
+import { agentModelId, languageModelForId } from "./model";
 
 export const RUN_COMPLETE_MARKER = "[RUN_COMPLETE]";
 const MAX_STEPS = 28;
@@ -46,7 +45,7 @@ const readFile = createTool({
 const createWarRoomAgent = (modelId: string) =>
   new Agent(components.agent, {
   name: "war-room-facilitator",
-  languageModel: anthropic(modelId),
+  languageModel: languageModelForId(modelId),
   tools: { listFiles, readFile },
   stopWhen: stepCountIs(8),
   instructions:
