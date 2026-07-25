@@ -9,7 +9,82 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { QRCodeSVG } from "qrcode.react";
+import PrismLight from "react-syntax-highlighter/dist/esm/prism-light";
+import tsxLang from "react-syntax-highlighter/dist/esm/languages/prism/tsx";
+import typescriptLang from "react-syntax-highlighter/dist/esm/languages/prism/typescript";
+import javascriptLang from "react-syntax-highlighter/dist/esm/languages/prism/javascript";
+import jsonLang from "react-syntax-highlighter/dist/esm/languages/prism/json";
+import markdownLang from "react-syntax-highlighter/dist/esm/languages/prism/markdown";
+import cssLang from "react-syntax-highlighter/dist/esm/languages/prism/css";
+import oneDark from "react-syntax-highlighter/dist/esm/styles/prism/one-dark";
 import { convexErrorMessage } from "@/app/convexError";
+
+// Only the languages the repo snapshot actually contains are registered, so
+// the viewer stays colorized without pulling in the full Prism bundle.
+PrismLight.registerLanguage("tsx", tsxLang);
+PrismLight.registerLanguage("typescript", typescriptLang);
+PrismLight.registerLanguage("javascript", javascriptLang);
+PrismLight.registerLanguage("json", jsonLang);
+PrismLight.registerLanguage("markdown", markdownLang);
+PrismLight.registerLanguage("css", cssLang);
+
+const LANGUAGE_BY_EXTENSION: Record<string, string> = {
+  tsx: "tsx",
+  jsx: "tsx",
+  ts: "typescript",
+  js: "javascript",
+  mjs: "javascript",
+  cjs: "javascript",
+  json: "json",
+  md: "markdown",
+  css: "css",
+};
+
+/** Resolves a snapshot path to a registered Prism language, or null if unknown. */
+function languageForPath(path: string): string | null {
+  const ext = path.split(".").pop()?.toLowerCase() ?? "";
+  return LANGUAGE_BY_EXTENSION[ext] ?? null;
+}
+
+// The theme paints its own background on both the pre and the inner code, so
+// both are overridden to let the pane's zinc surface show through.
+const CODE_BLOCK_STYLE: React.CSSProperties = {
+  margin: 0,
+  padding: "8px 10px",
+  background: "transparent",
+  maxHeight: "60vh",
+  overflow: "auto",
+  fontSize: "13px",
+  lineHeight: 1.6,
+};
+
+const CODE_TAG_STYLE: React.CSSProperties = {
+  background: "transparent",
+  fontFamily: "var(--mono)",
+  fontSize: "13px",
+};
+
+/**
+ * Renders one snapshot file, colorized when its extension maps to a known
+ * language and as plain text otherwise.
+ */
+function FileViewer({ path, code }: { path: string; code: string }) {
+  const language = languageForPath(path);
+  if (!language) {
+    return <pre className="file-body">{code}</pre>;
+  }
+  return (
+    <PrismLight
+      language={language}
+      style={oneDark}
+      customStyle={CODE_BLOCK_STYLE}
+      codeTagProps={{ style: CODE_TAG_STYLE }}
+      wrapLongLines={false}
+    >
+      {code}
+    </PrismLight>
+  );
+}
 
 type StoredIdentity = {
   participantId: Id<"participants">;
@@ -724,11 +799,13 @@ export default function RoomPage() {
         </button>
         <span>{selectedPath}</span>
       </div>
-      <pre className="file-body">
-        {selectedFile === undefined
-          ? "loading…"
-          : (selectedFile ?? "file not in snapshot")}
-      </pre>
+      {selectedFile === undefined || selectedFile === null ? (
+        <pre className="file-body">
+          {selectedFile === undefined ? "loading…" : "file not in snapshot"}
+        </pre>
+      ) : (
+        <FileViewer path={selectedPath} code={selectedFile} />
+      )}
     </div>
   ) : (
     <div className="card">
