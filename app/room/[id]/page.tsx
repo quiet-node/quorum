@@ -287,7 +287,9 @@ export default function RoomPage() {
   const [starting, setStarting] = useState(false);
   const [runNotice, setRunNotice] = useState<string | null>(null);
   const [stopping, setStopping] = useState(false);
-  const [tab, setTab] = useState<"diff" | "console" | "files">("diff");
+  // Files is the default tab: before the first run the Diff tab is empty,
+  // and an empty pane is the first thing a judge would otherwise see.
+  const [tab, setTab] = useState<"diff" | "console" | "files">("files");
   const [openDirs, setOpenDirs] = useState<Record<string, boolean>>({});
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const selectedFile = useQuery(
