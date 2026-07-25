@@ -8,6 +8,11 @@ export const DEFAULT_AGENT_MODEL = "claude-sonnet-5";
 /** Prefix identifying a Fireworks-hosted model id, e.g. "accounts/fireworks/models/minimax-m2p7". */
 const FIREWORKS_MODEL_PREFIX = "accounts/fireworks/";
 
+/** True if the model id routes through @ai-sdk/fireworks rather than @ai-sdk/anthropic. */
+export function isFireworksModelId(modelId: string): boolean {
+  return modelId.startsWith(FIREWORKS_MODEL_PREFIX);
+}
+
 /**
  * Resolves the model id for a run.
  *

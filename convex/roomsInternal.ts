@@ -135,3 +135,33 @@ export const markInterjectionsConsumed = internalMutation({
     }
   },
 });
+
+/**
+ * Deletes a room plus its participants and interjections. Leaves the agent
+ * component's own thread data untouched. Internal only: for clearing junk
+ * smoke-test rooms off the landing rail, not exposed to any client.
+ */
+export const deleteRoom = internalMutation({
+  args: {
+    roomId: v.id("rooms"),
+  },
+  handler: async (ctx, args) => {
+    const participants = await ctx.db
+      .query("participants")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .collect();
+    for (const p of participants) {
+      await ctx.db.delete(p._id);
+    }
+
+    const interjections = await ctx.db
+      .query("interjections")
+      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+      .collect();
+    for (const i of interjections) {
+      await ctx.db.delete(i._id);
+    }
+
+    await ctx.db.delete(args.roomId);
+  },
+});

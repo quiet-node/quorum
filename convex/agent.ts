@@ -4,13 +4,19 @@ import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { internal, components } from "./_generated/api";
 import { Agent, createTool, stepCountIs, type ToolCtx } from "@convex-dev/agent";
+import type { SharedV3ProviderOptions } from "@ai-sdk/provider";
 import { z } from "zod";
-import { agentModelId, languageModelForId } from "./model";
+import { agentModelId, languageModelForId, isFireworksModelId } from "./model";
 
 export const RUN_COMPLETE_MARKER = "[RUN_COMPLETE]";
 const MAX_STEPS = 28;
 const MAX_RUN_MS = 7 * 60 * 1000;
 const STEP_MAX_OUTPUT_TOKENS = 900;
+
+// Fireworks-hosted reasoning models (MiniMax M2, GLM 5.2, ...) burn part of
+// STEP_MAX_OUTPUT_TOKENS on hidden reasoning tokens before any visible text,
+// so they get a larger per-step budget than the Anthropic path.
+const FIREWORKS_STEP_MAX_OUTPUT_TOKENS = 3000;
 
 const listFiles = createTool({
   description:
@@ -89,6 +95,21 @@ export const startRun = action({
     console.log(`run model: ${modelId}`);
     const warRoomAgent = createWarRoomAgent(modelId);
 
+    // Fireworks reasoning models can't be told to skip reasoning entirely the
+    // way Anthropic's `thinking.type: "disabled"` does. MiniMax keeps
+    // reasoning on unconditionally (rejects "none"/false) so the lowest lever
+    // available is minimum effort; GLM's reasoning genuinely turns off at
+    // "none". Either way the step gets a bigger output budget so reasoning +
+    // visible text both fit.
+    const isFireworks = isFireworksModelId(modelId);
+    const isGlm = modelId.includes("glm");
+    const stepMaxOutputTokens = isFireworks
+      ? FIREWORKS_STEP_MAX_OUTPUT_TOKENS
+      : STEP_MAX_OUTPUT_TOKENS;
+    const stepProviderOptions: SharedV3ProviderOptions = isFireworks
+      ? { fireworks: { reasoningEffort: isGlm ? "none" : "low" } }
+      : { anthropic: { thinking: { type: "disabled" } } };
+
     let threadId = room.threadId;
     if (!threadId) {
       const created = await warRoomAgent.createThread(ctx, {
@@ -149,8 +170,8 @@ export const startRun = action({
           { threadId },
           {
             prompt,
-            maxOutputTokens: STEP_MAX_OUTPUT_TOKENS,
-            providerOptions: { anthropic: { thinking: { type: "disabled" } } },
+            maxOutputTokens: stepMaxOutputTokens,
+            providerOptions: stepProviderOptions,
           },
           { saveStreamDeltas: { chunking: "word", throttleMs: 200 } },
         );
