@@ -154,7 +154,12 @@ export const listParticipants = query({
       .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
       .collect();
     const cutoff = Date.now() - ACTIVE_WINDOW_MS;
-    return participants.filter((p) => p.lastSeenAt >= cutoff);
+    // Everyone who ever joined stays visible; the client dims the inactive.
+    // A room viewed later (judging is unattended) should still show its crowd.
+    return participants.map((p) => ({
+      ...p,
+      active: p.lastSeenAt >= cutoff,
+    }));
   },
 });
 

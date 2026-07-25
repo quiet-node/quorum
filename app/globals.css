@@ -1571,3 +1571,8 @@ pre.file-body {
   opacity: 0.4;
   cursor: default;
 }
+
+/* Participants who left stay listed, dimmed: judges see the whole crowd. */
+.person.away {
+  opacity: 0.45;
+}

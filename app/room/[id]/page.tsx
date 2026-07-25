@@ -901,13 +901,11 @@ export default function RoomPage() {
             <div className="side-label">In room · {people.length}</div>
             {people.map((p) => {
               const steer = latestSteerByName.get(p.name);
+              // Inactive participants stay visible but dimmed: an unattended
+              // judge should still see everyone who was in the room.
+              const cls = p.name === identity.name ? "person self" : "person";
               return (
-                <div
-                  key={p._id}
-                  className={
-                    p.name === identity.name ? "person self" : "person"
-                  }
-                >
+                <div key={p._id} className={p.active ? cls : cls + " away"}>
                   <i className="av" style={{ background: p.color }}>
                     {initials(p.name)}
                   </i>
@@ -920,8 +918,10 @@ export default function RoomPage() {
                     </div>
                     {steer ? (
                       <div className="person-steer">{steer}</div>
-                    ) : (
+                    ) : p.active ? (
                       <div className="person-idle">watching · no steers yet</div>
+                    ) : (
+                      <div className="person-idle">was here</div>
                     )}
                   </div>
                 </div>
