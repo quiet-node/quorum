@@ -1067,18 +1067,20 @@ pre.file-body {
   }
 }
 
-/* ---------- run rejection banner (room page) ---------- */
-.run-error {
+/* ---------- capacity notice (room page) ---------- */
+/* Deliberately styled as a neutral notice, not an error: hitting a run cap is
+   an expected wait, not a failure. */
+.run-notice {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 8px 14px;
-  border-bottom: 1px solid rgba(176, 106, 106, 0.24);
-  background: rgba(176, 106, 106, 0.08);
-  color: var(--t1);
+  border-bottom: 1px solid var(--line);
+  background: var(--sunken);
+  color: var(--t2);
   font-size: 12px;
 }
-.run-error-x {
+.run-notice-x {
   margin-left: auto;
   border: none;
   background: transparent;
@@ -1087,7 +1089,7 @@ pre.file-body {
   line-height: 1;
   cursor: pointer;
 }
-.run-error-x:hover {
+.run-notice-x:hover {
   color: var(--t1);
 }
 
@@ -1301,8 +1303,8 @@ pre.file-body {
   color: var(--t4);
   flex: 0 0 auto;
 }
-.lp-title-field,
-.lp-code-field {
+.lp-title-field {
+  flex: 1 1 auto;
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -1313,18 +1315,10 @@ pre.file-body {
   color: var(--t1);
   outline: none;
 }
-.lp-title-field {
-  flex: 1 1 auto;
-}
-.lp-code-field {
-  flex: 0 0 128px;
-}
-.lp-title-field::placeholder,
-.lp-code-field::placeholder {
+.lp-title-field::placeholder {
   color: var(--t4);
 }
 .lp-title-field:focus,
-.lp-code-field:focus,
 .lp-task:focus {
   border-color: #2a2e30;
 }
@@ -1367,13 +1361,13 @@ pre.file-body {
   opacity: 0.5;
   cursor: default;
 }
-.lp-error {
+.lp-notice {
   margin-top: 10px;
   padding: 7px 10px;
-  border: 1px solid rgba(176, 106, 106, 0.24);
+  border: 1px solid var(--line);
   border-radius: 5px;
-  background: rgba(176, 106, 106, 0.08);
-  color: var(--t1);
+  background: var(--sunken);
+  color: var(--t2);
   font-size: 12px;
 }
 .lp-chips {
@@ -1493,9 +1487,6 @@ pre.file-body {
   }
   .lp-title-row {
     flex-wrap: wrap;
-  }
-  .lp-code-field {
-    flex: 1 1 auto;
   }
   .lp-bar {
     flex-wrap: wrap;

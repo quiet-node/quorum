@@ -2,7 +2,7 @@ import { internalMutation, internalQuery } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 
 /** Most rooms allowed to hold a live run at the same time, across the app. */
-const MAX_CONCURRENT_RUNS = 2;
+const MAX_CONCURRENT_RUNS = 3;
 /** Most runs a single room may ever start. */
 const MAX_RUNS_PER_ROOM = 10;
 /**
@@ -65,7 +65,7 @@ export const reserveRun = internalMutation({
     );
     if (liveRuns.length >= MAX_CONCURRENT_RUNS) {
       throw new ConvexError(
-        `${MAX_CONCURRENT_RUNS} rooms are already running. Wait for one to finish, then start again.`,
+        "At capacity — a run just finished? Try again in a moment.",
       );
     }
 

@@ -57,7 +57,7 @@ const ARTIFACT_RE = /```artifact\n([\s\S]*?)```/g;
 
 const ARTIFACT_OPEN = "```artifact\n";
 
-// Steps are capped at 400 output tokens, so the final artifact fence is often
+// Steps have a bounded output budget, so the final artifact fence is often
 // left unterminated. Take the last opened block whether or not it closed.
 function extractLastArtifact(
   messages: { text: string }[] | undefined,
@@ -285,7 +285,7 @@ export default function RoomPage() {
     }
   });
   const [starting, setStarting] = useState(false);
-  const [runError, setRunError] = useState<string | null>(null);
+  const [runNotice, setRunNotice] = useState<string | null>(null);
   const [stopping, setStopping] = useState(false);
   const [tab, setTab] = useState<"diff" | "console" | "files">("diff");
   const [openDirs, setOpenDirs] = useState<Record<string, boolean>>({});
@@ -407,11 +407,11 @@ export default function RoomPage() {
   async function handleStart() {
     if (starting) return;
     setStarting(true);
-    setRunError(null);
+    setRunNotice(null);
     try {
       await startRun({ roomId });
     } catch (err) {
-      setRunError(convexErrorMessage(err, "Could not start the run."));
+      setRunNotice(convexErrorMessage(err, "Could not start the run."));
     } finally {
       setStarting(false);
     }
@@ -421,12 +421,12 @@ export default function RoomPage() {
   async function handleNewRun() {
     if (starting) return;
     setStarting(true);
-    setRunError(null);
+    setRunNotice(null);
     try {
       await resetRoom({ roomId });
       await startRun({ roomId });
     } catch (err) {
-      setRunError(convexErrorMessage(err, "Could not start the run."));
+      setRunNotice(convexErrorMessage(err, "Could not start the run."));
     } finally {
       setStarting(false);
     }
@@ -721,13 +721,13 @@ export default function RoomPage() {
         </button>
       </header>
 
-      {runError && (
-        <div className="run-error" role="status">
-          <span>{runError}</span>
+      {runNotice && (
+        <div className="run-notice" role="status">
+          <span>{runNotice}</span>
           <button
             type="button"
-            className="run-error-x"
-            onClick={() => setRunError(null)}
+            className="run-notice-x"
+            onClick={() => setRunNotice(null)}
             aria-label="Dismiss"
           >
             ×

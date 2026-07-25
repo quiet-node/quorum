@@ -4,7 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { convexErrorMessage } from "@/app/convexError";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const TEMPLATES = [
   {
@@ -26,9 +26,6 @@ const TEMPLATES = [
       "Triage a production incident: establish a timeline, list the leading hypotheses, and propose the next three diagnostic steps.",
   },
 ];
-
-/** Where the creation code is remembered so it only has to be typed once. */
-const CODE_STORAGE_KEY = "quorum:createCode";
 
 /** Rows rendered while the rooms rail is loading, so the rail never jumps. */
 const SKELETON_ROWS = [0, 1, 2];
@@ -59,16 +56,8 @@ export default function Home() {
     | undefined;
   const [title, setTitle] = useState("");
   const [taskPrompt, setTaskPrompt] = useState("");
-  const [createCode, setCreateCode] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  // Read after mount rather than during render so the server and client markup
-  // match on first paint.
-  useEffect(() => {
-    const saved = window.localStorage.getItem(CODE_STORAGE_KEY);
-    if (saved) setCreateCode(saved);
-  }, []);
 
   /** Fills the composer from a template chip. */
   function applyTemplate(template: (typeof TEMPLATES)[number]) {
@@ -76,27 +65,20 @@ export default function Home() {
     setTaskPrompt(template.taskPrompt);
   }
 
-  /**
-   * Creates a room and navigates into it.
-   *
-   * The creation code is only remembered once the server has accepted it, so a
-   * wrong code never gets cached and replayed.
-   */
+  /** Creates a room and navigates into it. */
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!taskPrompt.trim() || submitting) return;
     setSubmitting(true);
-    setError(null);
+    setNotice(null);
     try {
       const roomId = await createRoom({
         title: title.trim() || "Untitled room",
         taskPrompt,
-        createCode,
       });
-      window.localStorage.setItem(CODE_STORAGE_KEY, createCode);
       router.push(`/room/${roomId}`);
     } catch (err) {
-      setError(convexErrorMessage(err, "Could not create the room."));
+      setNotice(convexErrorMessage(err, "Could not create the room."));
       setSubmitting(false);
     }
   }
@@ -127,7 +109,7 @@ export default function Home() {
             onClick={() => {
               setTitle("");
               setTaskPrompt("");
-              setError(null);
+              setNotice(null);
             }}
           >
             <span className="lp-plus">+</span> New room
@@ -216,17 +198,6 @@ export default function Home() {
                 placeholder="Untitled room"
                 aria-label="Room title"
               />
-              <span className="lp-title-label">Code</span>
-              <input
-                className="lp-code-field"
-                type="password"
-                value={createCode}
-                onChange={(e) => setCreateCode(e.target.value)}
-                placeholder="creation code"
-                aria-label="Creation code"
-                autoComplete="off"
-                required
-              />
             </div>
 
             <div className="lp-bar">
@@ -242,7 +213,7 @@ export default function Home() {
             </div>
           </form>
 
-          {error && <div className="lp-error">{error}</div>}
+          {notice && <div className="lp-notice">{notice}</div>}
 
           <div className="lp-chips">
             {TEMPLATES.map((template) => (
