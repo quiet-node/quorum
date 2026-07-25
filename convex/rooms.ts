@@ -110,19 +110,19 @@ export const heartbeat = mutation({
   },
 });
 
+/**
+ * Returns a finished room to idle so a fresh run can start.
+ *
+ * Pending steers are deliberately left unconsumed: someone who steers a
+ * finished room and then presses New run expects that steer to drive the next
+ * run. Only a run that actually drains a steer marks it consumed.
+ */
 export const resetRoom = mutation({
   args: {
     roomId: v.id("rooms"),
   },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.roomId, { status: "idle", stopRequested: false });
-    const interjections = await ctx.db
-      .query("interjections")
-      .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
-      .collect();
-    for (const interjection of interjections) {
-      await ctx.db.patch(interjection._id, { consumed: true });
-    }
   },
 });
 
@@ -164,9 +164,9 @@ export const listParticipants = query({
  * A steer sent into an idle or finished room used to sit there silently until
  * someone pressed Start, which reads as a broken app. Instead the steer itself
  * wakes the agent: the new interjection is inserted unconsumed so the first
- * step of the scheduled run picks it up. A finished room is reset first, which
- * retires the earlier steers so only the new one drives the fresh run. Status
- * "error" never auto-starts, so a retry after a failure stays explicit.
+ * step of the scheduled run picks it up. A finished room is returned to idle
+ * first so the scheduled run is a fresh one. Status "error" never auto-starts,
+ * so a retry after a failure stays explicit.
  *
  * The scheduled run goes through the same startRun action as the button, so
  * every spend guard in reserveRun still applies. If a cap rejects it, the room
@@ -187,15 +187,6 @@ export const addInterjection = mutation({
 
     if (restarting) {
       await ctx.db.patch(args.roomId, { status: "idle", stopRequested: false });
-      const previous = await ctx.db
-        .query("interjections")
-        .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
-        .collect();
-      for (const interjection of previous) {
-        if (!interjection.consumed) {
-          await ctx.db.patch(interjection._id, { consumed: true });
-        }
-      }
     }
 
     await ctx.db.insert("interjections", {
