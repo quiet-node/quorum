@@ -920,7 +920,7 @@ export default function RoomPage() {
       <div className="shell">
         <div className="strip">
           {people.map((p) => (
-            <span key={p._id} className="s-item">
+            <span key={p._id} className={p.active ? "s-item" : "s-item away"}>
               <i className="av" style={{ background: p.color }}>
                 {initials(p.name)}
               </i>

@@ -1659,3 +1659,33 @@ pre.file-body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Presence, the way Slack and Discord taught everyone to read it:
+   green dot pinned to the avatar corner = live in the room right now;
+   no dot + desaturated avatar = was here earlier. */
+.person .av,
+.s-item .av {
+  position: relative;
+}
+.person:not(.away) .av::after,
+.s-item:not(.away) .av::after {
+  content: "";
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--em);
+  border: 2px solid var(--panel);
+}
+.person.away .av,
+.s-item.away .av {
+  filter: saturate(0.25) brightness(0.75);
+}
+.person.away {
+  opacity: 0.6;
+}
+.person.away .person-name {
+  color: var(--t3);
+}
