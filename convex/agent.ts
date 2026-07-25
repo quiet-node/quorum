@@ -3,22 +3,50 @@
 import { action } from "./_generated/server";
 import { v } from "convex/values";
 import { internal, components } from "./_generated/api";
-import { Agent } from "@convex-dev/agent";
+import { Agent, createTool, stepCountIs, type ToolCtx } from "@convex-dev/agent";
 import { anthropic } from "@ai-sdk/anthropic";
+import { z } from "zod";
 
 export const RUN_COMPLETE_MARKER = "[RUN_COMPLETE]";
 const MAX_STEPS = 20;
 const MAX_RUN_MS = 7 * 60 * 1000;
 const STEP_MAX_OUTPUT_TOKENS = 400;
 
+const listFiles = createTool({
+  description:
+    "List every file path available in the repo snapshot, with each file's size in bytes.",
+  inputSchema: z.object({}),
+  execute: async (ctx: ToolCtx): Promise<string> => {
+    const files = await ctx.runQuery(internal.repoFiles.listRepoFiles, {});
+    return files.map((f) => `${f.path} (${f.bytes}B)`).join("\n");
+  },
+});
+
+const readFile = createTool({
+  description: "Read the full contents of one file from the repo snapshot by its path.",
+  inputSchema: z.object({
+    path: z.string().describe("Repo-relative path, e.g. 'convex/agent.ts'"),
+  }),
+  execute: async (ctx: ToolCtx, { path }: { path: string }): Promise<string> => {
+    const content = await ctx.runQuery(internal.repoFiles.getRepoFile, { path });
+    if (content === null) {
+      return `Error: no file found at path "${path}". Use listFiles to see available paths.`;
+    }
+    return content;
+  },
+});
+
 export const warRoomAgent = new Agent(components.agent, {
   name: "war-room-facilitator",
   languageModel: anthropic("claude-sonnet-5"),
+  tools: { listFiles, readFile },
+  stopWhen: stepCountIs(8),
   instructions:
     "You are a live war-room facilitator working a task out loud for an audience of named participants watching in real time. " +
     "Work in short, focused bursts: a few sentences per turn, concrete progress each time, no throat-clearing. " +
     "When the prompt includes one or more lines starting with 'INTERJECTION from <name>:', you MUST explicitly acknowledge each named author by name and visibly adjust your course before continuing the work. " +
     "If the task produces a document, plan, or code artifact, maintain a single working draft of it. At the end of EVERY step, re-emit the complete current draft (not a diff) inside a fenced code block opened with ```artifact and closed with ```. Always include the full draft as it stands, even if unchanged since the last step. " +
+    "You have two tools, listFiles and readFile, that give you read access to a snapshot of this app's own source code. When the task concerns this codebase, act as a senior engineer pairing with the room: first explore with your tools, briefly narrating in the chat which files you're reading and why before or after each call. Once you understand the relevant code, produce the implementation as a unified diff (---/+++/@@ hunks) plus a short PR description, and keep that maintained as the working draft in the ```artifact block, re-emitting the full current diff and description each step. " +
     `When the task is fully complete, end your final message with the literal marker ${RUN_COMPLETE_MARKER} on its own line.`,
 });
 
@@ -87,7 +115,11 @@ export const startRun = action({
         const result = await warRoomAgent.streamText(
           ctx,
           { threadId },
-          { prompt, maxOutputTokens: STEP_MAX_OUTPUT_TOKENS },
+          {
+            prompt,
+            maxOutputTokens: STEP_MAX_OUTPUT_TOKENS,
+            providerOptions: { anthropic: { thinking: { type: "disabled" } } },
+          },
           { saveStreamDeltas: { chunking: "word", throttleMs: 200 } },
         );
 

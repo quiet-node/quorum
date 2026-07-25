@@ -27,4 +27,9 @@ export default defineSchema({
     text: v.string(),
     consumed: v.boolean(),
   }).index("by_room", ["roomId"]),
+
+  repoFiles: defineTable({
+    path: v.string(),
+    content: v.string(),
+  }).index("by_path", ["path"]),
 });

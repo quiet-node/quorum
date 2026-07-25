@@ -9,6 +9,7 @@
  */
 
 import type * as agent from "../agent.js";
+import type * as repoFiles from "../repoFiles.js";
 import type * as rooms from "../rooms.js";
 import type * as roomsInternal from "../roomsInternal.js";
 
@@ -20,6 +21,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   agent: typeof agent;
+  repoFiles: typeof repoFiles;
   rooms: typeof rooms;
   roomsInternal: typeof roomsInternal;
 }>;

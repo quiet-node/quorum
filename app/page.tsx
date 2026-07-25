@@ -5,12 +5,32 @@ import { api } from "@/convex/_generated/api";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+const TEMPLATES = [
+  {
+    label: "Improve this codebase",
+    title: "Coding session",
+    taskPrompt:
+      "Add a 'Copy room link' button to the room page header of this very app. Explore the codebase with your tools first, name the files you read, then draft the diff and PR description in the artifact.",
+  },
+  {
+    label: "Plan a launch",
+    title: "Launch plan",
+    taskPrompt:
+      "Draft a launch plan for a new product feature: goals, timeline, and key risks.",
+  },
+];
+
 export default function Home() {
   const router = useRouter();
   const createRoom = useMutation(api.rooms.createRoom);
   const [title, setTitle] = useState("");
   const [taskPrompt, setTaskPrompt] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  function applyTemplate(template: (typeof TEMPLATES)[number]) {
+    setTitle(template.title);
+    setTaskPrompt(template.taskPrompt);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,6 +51,18 @@ export default function Home() {
         <p className="mb-8 text-sm text-zinc-400">
           Spin up a room, watch Claude work, steer it together.
         </p>
+        <div className="mb-4 flex flex-wrap gap-2">
+          {TEMPLATES.map((template) => (
+            <button
+              key={template.label}
+              type="button"
+              onClick={() => applyTemplate(template)}
+              className="rounded-full border border-zinc-700 px-3 py-1 text-xs text-zinc-300 hover:border-zinc-500 hover:text-zinc-50"
+            >
+              {template.label}
+            </button>
+          ))}
+        </div>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <label htmlFor="title" className="text-sm text-zinc-400">
