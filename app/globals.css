@@ -1066,3 +1066,454 @@ pre.file-body {
     padding: 8px 10px 10px;
   }
 }
+
+/* ---------- run rejection banner (room page) ---------- */
+.run-error {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(176, 106, 106, 0.24);
+  background: rgba(176, 106, 106, 0.08);
+  color: var(--t1);
+  font-size: 12px;
+}
+.run-error-x {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--t3);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+.run-error-x:hover {
+  color: var(--t1);
+}
+
+/* ---------- landing page: greeting + rooms rail ---------- */
+/* All landing selectors are lp- prefixed: the room page already owns .app,
+   .side, .composer and friends, and must not be restyled from here. */
+.lp-app {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  height: 100vh;
+}
+.lp-side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+}
+.lp-side-top {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  height: 40px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.lp-side-new {
+  padding: 10px 10px 8px;
+  flex: 0 0 auto;
+}
+.lp-btn-new {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--sunken);
+  color: var(--t1);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.lp-btn-new:hover {
+  color: var(--t0);
+  border-color: #2a2e30;
+}
+.lp-plus {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--t3);
+}
+.lp-btn-new:hover .lp-plus {
+  color: var(--em);
+}
+.lp-side-label {
+  padding: 8px 12px 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--t4);
+}
+.lp-side-scroll {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+.lp-room {
+  display: block;
+  padding: 7px 12px 8px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+.lp-room:hover {
+  background: var(--sunken);
+}
+.lp-room-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lp-room-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--t1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lp-room-meta {
+  margin-top: 3px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--t4);
+}
+.lp-status {
+  margin-left: auto;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--t3);
+}
+.lp-status.running {
+  color: var(--em);
+  border-color: rgba(52, 211, 153, 0.22);
+  background: var(--em-bg);
+}
+/* Skeleton rows hold the exact height of a real row so the rail does not
+   reflow when the query resolves. */
+.lp-room-skeleton {
+  cursor: default;
+}
+.lp-skel-line {
+  height: 12px;
+  border-radius: 3px;
+  background: var(--sunken);
+}
+.lp-skel-meta {
+  margin-top: 4px;
+  height: 10px;
+  width: 60%;
+  border-radius: 3px;
+  background: var(--sunken);
+}
+.lp-side-foot {
+  flex: 0 0 auto;
+  min-height: 32px;
+  border-top: 1px solid var(--line-soft);
+  padding: 9px 12px 11px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--t4);
+}
+.lp-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 24px;
+}
+.lp-stack {
+  width: 100%;
+  max-width: 620px;
+}
+.lp-greet {
+  margin: 0;
+  text-align: center;
+  font-size: 25px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--t0);
+}
+.lp-soft {
+  color: var(--t2);
+  font-weight: 500;
+}
+.lp-sub {
+  margin: 8px 0 22px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--t3);
+}
+.lp-composer {
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.lp-task {
+  display: block;
+  width: 100%;
+  border: none;
+  outline: none;
+  resize: none;
+  background: transparent;
+  padding: 14px 15px 8px;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--t1);
+  min-height: 70px;
+}
+.lp-task::placeholder {
+  color: var(--t3);
+}
+.lp-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 15px 11px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.lp-title-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--t4);
+  flex: 0 0 auto;
+}
+.lp-title-field,
+.lp-code-field {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+  padding: 5px 8px;
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--t1);
+  outline: none;
+}
+.lp-title-field {
+  flex: 1 1 auto;
+}
+.lp-code-field {
+  flex: 0 0 128px;
+}
+.lp-title-field::placeholder,
+.lp-code-field::placeholder {
+  color: var(--t4);
+}
+.lp-title-field:focus,
+.lp-code-field:focus,
+.lp-task:focus {
+  border-color: #2a2e30;
+}
+.lp-bar {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px 10px 12px;
+}
+.lp-model {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--t4);
+  padding: 3px 7px;
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+}
+.lp-steer-note {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--t4);
+}
+.lp-btn-start {
+  margin-left: auto;
+  flex: 0 0 auto;
+  padding: 6px 14px;
+  border: 1px solid #2a2e30;
+  border-radius: 5px;
+  background: var(--raised);
+  color: var(--t0);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lp-btn-start:hover {
+  border-color: #3a3f42;
+}
+.lp-btn-start:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.lp-error {
+  margin-top: 10px;
+  padding: 7px 10px;
+  border: 1px solid rgba(176, 106, 106, 0.24);
+  border-radius: 5px;
+  background: rgba(176, 106, 106, 0.08);
+  color: var(--t1);
+  font-size: 12px;
+}
+.lp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 14px;
+}
+.lp-chip {
+  padding: 5px 11px;
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--t3);
+  font-family: var(--sans);
+  font-size: 12px;
+  cursor: pointer;
+}
+.lp-chip:hover {
+  color: var(--t1);
+  border-color: #2a2e30;
+  border-style: solid;
+  background: var(--sunken);
+}
+.lp-recent {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 26px;
+  min-height: 26px;
+}
+.lp-recent-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--t4);
+}
+.lp-recent-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  background: var(--panel);
+  color: var(--t3);
+  font-family: var(--sans);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.lp-recent-item:hover {
+  color: var(--t1);
+  border-color: var(--line);
+}
+.lp-ago {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--t4);
+}
+.lp-mobilebar {
+  display: none;
+}
+
+@media (max-width: 420px) {
+  .lp-app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .lp-side {
+    display: none;
+  }
+  .lp-mobilebar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 44px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+  .lp-count-chip {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(52, 211, 153, 0.22);
+    background: var(--em-bg);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--em);
+  }
+  .lp-main {
+    padding: 0 12px;
+    justify-content: flex-start;
+  }
+  .lp-stack {
+    margin-top: 12vh;
+    padding-bottom: 40px;
+  }
+  .lp-greet {
+    font-size: 20px;
+    text-align: left;
+  }
+  .lp-sub {
+    text-align: left;
+    margin-bottom: 18px;
+  }
+  .lp-task {
+    font-size: 13px;
+    min-height: 92px;
+  }
+  .lp-title-row {
+    flex-wrap: wrap;
+  }
+  .lp-code-field {
+    flex: 1 1 auto;
+  }
+  .lp-bar {
+    flex-wrap: wrap;
+  }
+  .lp-steer-note {
+    display: none;
+  }
+  .lp-btn-start {
+    width: 100%;
+    margin-left: 0;
+    padding: 10px 14px;
+    text-align: center;
+  }
+  .lp-chips {
+    justify-content: flex-start;
+  }
+  .lp-recent {
+    justify-content: flex-start;
+    margin-top: 22px;
+  }
+}

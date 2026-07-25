@@ -1,5 +1,5 @@
 import { mutation, query } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { components } from "./_generated/api";
 import { listUIMessages, syncStreams, vStreamArgs } from "@convex-dev/agent";
@@ -19,18 +19,67 @@ const COLOR_PALETTE = [
 
 const ACTIVE_WINDOW_MS = 25_000;
 
+const RECENT_ROOM_LIMIT = 12;
+
+/**
+ * Creates a room, gated by a shared creation code.
+ *
+ * The code is compared against the CREATE_CODE Convex environment variable and
+ * never leaves the server: the expected value is not returned, logged, or
+ * echoed back in the rejection message. The submitted code is untrusted input
+ * and is only ever compared, never persisted. The check fails closed when
+ * CREATE_CODE is unset so a misconfigured deployment cannot be spent against.
+ *
+ * Joining, watching, and steering an existing room stay authless by design.
+ */
 export const createRoom = mutation({
   args: {
     title: v.string(),
     taskPrompt: v.string(),
+    createCode: v.string(),
   },
   handler: async (ctx, args) => {
+    const expected = process.env.CREATE_CODE;
+    if (!expected || args.createCode !== expected) {
+      throw new ConvexError("That creation code is not valid.");
+    }
     const roomId = await ctx.db.insert("rooms", {
       title: args.title,
       taskPrompt: args.taskPrompt,
       status: "idle",
+      runCount: 0,
     });
     return roomId;
+  },
+});
+
+/**
+ * Lists the most recent rooms for the landing page rail.
+ *
+ * Returns only presentation fields. The task prompt and any internal run
+ * bookkeeping are deliberately excluded so nothing sensitive reaches an
+ * unauthenticated client.
+ */
+export const listRecentRooms = query({
+  args: {},
+  handler: async (ctx) => {
+    const rooms = await ctx.db.query("rooms").order("desc").take(RECENT_ROOM_LIMIT);
+    const cutoff = Date.now() - ACTIVE_WINDOW_MS;
+    return await Promise.all(
+      rooms.map(async (room) => {
+        const participants = await ctx.db
+          .query("participants")
+          .withIndex("by_room", (q) => q.eq("roomId", room._id))
+          .collect();
+        return {
+          _id: room._id,
+          title: room.title,
+          status: room.status,
+          createdAt: room._creationTime,
+          people: participants.filter((p) => p.lastSeenAt >= cutoff).length,
+        };
+      }),
+    );
   },
 });
 

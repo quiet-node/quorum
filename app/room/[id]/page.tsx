@@ -9,6 +9,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { QRCodeSVG } from "qrcode.react";
+import { convexErrorMessage } from "@/app/convexError";
 
 type StoredIdentity = {
   participantId: Id<"participants">;
@@ -284,6 +285,7 @@ export default function RoomPage() {
     }
   });
   const [starting, setStarting] = useState(false);
+  const [runError, setRunError] = useState<string | null>(null);
   const [stopping, setStopping] = useState(false);
   const [tab, setTab] = useState<"diff" | "console" | "files">("diff");
   const [openDirs, setOpenDirs] = useState<Record<string, boolean>>({});
@@ -401,22 +403,30 @@ export default function RoomPage() {
     setIsAtBottom(distanceFromBottom < SCROLL_BOTTOM_THRESHOLD);
   }
 
+  /** Starts a run, surfacing a spend-cap rejection in the banner. */
   async function handleStart() {
     if (starting) return;
     setStarting(true);
+    setRunError(null);
     try {
       await startRun({ roomId });
+    } catch (err) {
+      setRunError(convexErrorMessage(err, "Could not start the run."));
     } finally {
       setStarting(false);
     }
   }
 
+  /** Resets the room and starts a fresh run, surfacing any rejection. */
   async function handleNewRun() {
     if (starting) return;
     setStarting(true);
+    setRunError(null);
     try {
       await resetRoom({ roomId });
       await startRun({ roomId });
+    } catch (err) {
+      setRunError(convexErrorMessage(err, "Could not start the run."));
     } finally {
       setStarting(false);
     }
@@ -710,6 +720,20 @@ export default function RoomPage() {
           Invite
         </button>
       </header>
+
+      {runError && (
+        <div className="run-error" role="status">
+          <span>{runError}</span>
+          <button
+            type="button"
+            className="run-error-x"
+            onClick={() => setRunError(null)}
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <div className="shell">
         <div className="strip">

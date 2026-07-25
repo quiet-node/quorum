@@ -13,7 +13,11 @@ export default defineSchema({
     ),
     threadId: v.optional(v.string()),
     stopRequested: v.optional(v.boolean()),
-  }),
+    // Spend caps. Both optional so rooms created before the caps landed stay
+    // valid against this schema.
+    runCount: v.optional(v.number()),
+    runStartedAt: v.optional(v.number()),
+  }).index("by_status", ["status"]),
 
   participants: defineTable({
     roomId: v.id("rooms"),

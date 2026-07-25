@@ -10,7 +10,7 @@ import { z } from "zod";
 export const RUN_COMPLETE_MARKER = "[RUN_COMPLETE]";
 const MAX_STEPS = 28;
 const MAX_RUN_MS = 7 * 60 * 1000;
-const STEP_MAX_OUTPUT_TOKENS = 400;
+const STEP_MAX_OUTPUT_TOKENS = 900;
 
 const listFiles = createTool({
   description:
@@ -48,9 +48,18 @@ export const warRoomAgent = new Agent(components.agent, {
     "If the task produces a document, plan, or code artifact, maintain a single working draft of it. At the end of EVERY step, re-emit the complete current draft (not a diff) inside a fenced code block opened with ```artifact and closed with ```. Always include the full draft as it stands, even if unchanged since the last step. " +
     "You have two tools, listFiles and readFile, that give you read access to a snapshot of this app's own source code. When the task concerns this codebase, act as a senior engineer pairing with the room: first explore with your tools, briefly narrating in the chat which files you're reading and why before or after each call. Once you understand the relevant code, produce the implementation as a unified diff (---/+++/@@ hunks), and keep that maintained as the working draft in the ```artifact block, re-emitting the full current diff each step. " +
     "As soon as you have written your first complete diff hunk, write a SHORT pull request description and place it at the TOP of the artifact, above the diff: a one-line title followed by two or three sentences of body, under 100 words total. Never defer the PR description to the end of the run, and never put it below the diff. Once it exists, re-emit it at the top of the artifact every step and keep refining the diff beneath it. " +
+    "Never narrate your own output mechanics. Do not mention truncation, output limits, token budgets, code fences, or how much room you have left, and never apologize for clipping or cutting off. If a hunk or draft is incomplete when a step ends, simply continue it on the next step with no commentary about why it stopped. " +
     `When the task is fully complete, end your final message with the literal marker ${RUN_COMPLETE_MARKER} on its own line.`,
 });
 
+/**
+ * Runs the agent loop for a room until it completes, is stopped, or runs out of
+ * budget.
+ *
+ * The spend caps are claimed up front via reserveRun, which is deliberately
+ * outside the try block below: a capped or already-running room must be
+ * rejected without marking the room as errored, since no run ever began.
+ */
 export const startRun = action({
   args: {
     roomId: v.id("rooms"),
@@ -62,9 +71,12 @@ export const startRun = action({
     if (room === null) {
       throw new Error("Room not found");
     }
-    if (room.status === "running") {
-      throw new Error("Room already running");
-    }
+
+    // Transactional: checks the global concurrency cap and the per-room run
+    // cap, then marks the room running and increments its run counter.
+    await ctx.runMutation(internal.roomsInternal.reserveRun, {
+      roomId: args.roomId,
+    });
 
     let threadId = room.threadId;
     if (!threadId) {
@@ -77,14 +89,6 @@ export const startRun = action({
         threadId,
       });
     }
-
-    await ctx.runMutation(internal.roomsInternal.clearStopRequested, {
-      roomId: args.roomId,
-    });
-    await ctx.runMutation(internal.roomsInternal.setRoomStatus, {
-      roomId: args.roomId,
-      status: "running",
-    });
 
     try {
       const startedAt = Date.now();
