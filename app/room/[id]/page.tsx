@@ -54,16 +54,21 @@ function initials(name: string) {
 
 const ARTIFACT_RE = /```artifact\n([\s\S]*?)```/g;
 
+const ARTIFACT_OPEN = "```artifact\n";
+
+// Steps are capped at 400 output tokens, so the final artifact fence is often
+// left unterminated. Take the last opened block whether or not it closed.
 function extractLastArtifact(
   messages: { text: string }[] | undefined,
 ): string | null {
   if (!messages) return null;
   let last: string | null = null;
   for (const m of messages) {
-    const matches = [...m.text.matchAll(ARTIFACT_RE)];
-    if (matches.length > 0) {
-      last = matches[matches.length - 1][1];
-    }
+    const start = m.text.lastIndexOf(ARTIFACT_OPEN);
+    if (start === -1) continue;
+    const rest = m.text.slice(start + ARTIFACT_OPEN.length);
+    const end = rest.indexOf("```");
+    last = end === -1 ? rest : rest.slice(0, end);
   }
   return last;
 }
@@ -71,7 +76,11 @@ function extractLastArtifact(
 // The agent re-emits the whole working draft inside a ```artifact fence every
 // step. The draft belongs in the right pane, not in the transcript prose.
 function stripArtifact(text: string) {
-  return text.replace(ARTIFACT_RE, "").replace(/\n{3,}/g, "\n\n").trim();
+  return text
+    .replace(ARTIFACT_RE, "")
+    .replace(/```artifact[\s\S]*$/, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 function clockTime(ms: number) {
@@ -105,7 +114,7 @@ function toolLabel(part: ToolPart): { verb: string; arg: string } {
   const name = toolNameOf(part);
   const input = (part.input ?? {}) as Record<string, unknown>;
   if (name === "readFile") {
-    return { verb: "Reading", arg: String(input.path ?? "") };
+    return { verb: "Reading", arg: String(input.path ?? "…") };
   }
   if (name === "listFiles") {
     return { verb: "Listing", arg: "repo snapshot" };
@@ -135,15 +144,47 @@ function diffStat(artifact: string | null) {
 
 const FENCE_RE = /```[a-zA-Z]*\n([\s\S]*?)```/g;
 
-/** Splits the working draft into its diff blocks and its prose summary. */
+/** Splits the working draft into its diff hunks and its prose summary. */
 function splitArtifact(artifact: string | null) {
   if (!artifact) return { diffs: [] as string[], summary: "" };
-  const diffs = [...artifact.matchAll(FENCE_RE)].map((m) => m[1].trimEnd());
-  const summary = artifact.replace(FENCE_RE, "").replace(/\n{3,}/g, "\n\n").trim();
-  if (diffs.length === 0 && /^(---|\+\+\+|@@)/m.test(artifact)) {
-    return { diffs: [artifact.trim()], summary: "" };
+
+  const fenced = [...artifact.matchAll(FENCE_RE)].map((m) => m[1].trimEnd());
+  if (fenced.length > 0) {
+    return {
+      diffs: fenced,
+      summary: artifact
+        .replace(FENCE_RE, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim(),
+    };
   }
-  return { diffs, summary };
+
+  // Unfenced: the diff runs until the first prose line after a hunk header.
+  const diffLines: string[] = [];
+  const proseLines: string[] = [];
+  let seenHunk = false;
+  let inProse = false;
+  for (const line of artifact.split("\n")) {
+    if (inProse) {
+      proseLines.push(line);
+      continue;
+    }
+    const diffish = /^(\+\+\+|---|@@|[+\- ])/.test(line) || line.trim() === "";
+    if (diffish) {
+      if (/^(@@|---|\+\+\+)/.test(line)) seenHunk = true;
+      diffLines.push(line);
+    } else if (seenHunk) {
+      inProse = true;
+      proseLines.push(line);
+    } else {
+      proseLines.push(line);
+    }
+  }
+  const diff = diffLines.join("\n").trim();
+  return {
+    diffs: diff ? [diff] : [],
+    summary: proseLines.join("\n").replace(/\n{3,}/g, "\n\n").trim(),
+  };
 }
 
 function diffTargetPath(diff: string) {
