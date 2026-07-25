@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { convexErrorMessage } from "@/app/convexError";
 import { useRouter } from "next/navigation";
@@ -98,6 +98,7 @@ function ago(timestamp: number): string {
 export default function Home() {
   const router = useRouter();
   const createRoom = useMutation(api.rooms.createRoom);
+  const startRun = useAction(api.agent.startRun);
   const rooms = useQuery(api.rooms.listRecentRooms, {}) as
     | RecentRoom[]
     | undefined;
@@ -124,7 +125,14 @@ export default function Home() {
     setTaskPrompt(template.taskPrompt);
   }
 
-  /** Creates a room and navigates into it. */
+  /**
+   * Creates a room, kicks its first run, and navigates into it.
+   *
+   * The run is fired without awaiting because startRun stays open for the whole
+   * agent loop. Its rejection is swallowed here: a spend cap leaves the room
+   * idle with its Start button, which is the friendly outcome, not an error on
+   * the landing page.
+   */
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!taskPrompt.trim() || submitting) return;
@@ -135,6 +143,7 @@ export default function Home() {
         title: title.trim() || "Untitled room",
         taskPrompt,
       });
+      void startRun({ roomId }).catch(() => {});
       router.push(`/room/${roomId}`);
     } catch (err) {
       setNotice(convexErrorMessage(err, "Could not create the room."));

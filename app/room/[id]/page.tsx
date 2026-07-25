@@ -5,6 +5,7 @@ import { useUIMessages } from "@convex-dev/agent/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -822,7 +823,9 @@ export default function RoomPage() {
   return (
     <div className="app">
       <header className="topbar">
-        <span className="wordmark">quorum</span>
+        <Link className="wordmark wordmark-link" href="/">
+          quorum
+        </Link>
         <span className="crumb">
           <b>quiet-node/quorum</b> · main
         </span>
@@ -947,6 +950,11 @@ export default function RoomPage() {
 
           <div className="scroll" ref={scrollRef} onScroll={handleScroll}>
             <div className="col">
+              <div className="task-card">
+                <div className="task-label">Task</div>
+                <div className="task-text">{room.taskPrompt}</div>
+              </div>
+
               {feed.length === 0 && (
                 <div className="empty">
                   {room.status === "idle"

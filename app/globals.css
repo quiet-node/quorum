@@ -1522,3 +1522,33 @@ pre.file-body {
   font-size: 11px;
   color: var(--t3);
 }
+
+/* ---------- pinned task card (room transcript) ---------- */
+.task-card {
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--t4);
+  border-radius: 4px;
+  background: var(--sunken);
+  padding: 8px 12px;
+  margin-bottom: 4px;
+}
+.task-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--t4);
+  margin-bottom: 4px;
+}
+.task-text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--t2);
+}
+.wordmark-link {
+  text-decoration: none;
+  cursor: pointer;
+}
+.wordmark-link:hover {
+  color: var(--t0);
+}
