@@ -4,6 +4,10 @@
 
 Agent sessions are single-player today: one person prompts, everyone else reads the transcript afterwards. Quorum turns a run into a room: scan a QR code, type a name, no account and no login, and you are watching the same Claude agent work live and steering it mid-run by typing an interjection it acknowledges by name. The demo task points the agent at a snapshot of this very repo, where it explores with its own `listFiles` / `readFile` tools and drafts a real unified diff while the room redirects it.
 
+## Demo video
+
+https://github.com/user-attachments/assets/7f6c1089-9b91-4fe9-8026-583f16f5c4a7
+
 ## Live demo
 
 https://usequorum.vercel.app
