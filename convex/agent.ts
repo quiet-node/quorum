@@ -133,9 +133,14 @@ export const startRun = action({
           .map((i) => `INTERJECTION from ${i.authorName}: ${i.text}`)
           .join("\n");
 
+        // A run started by a steer consumes that steer on its very first step,
+        // so the opening prompt has to carry it or the author is never
+        // acknowledged.
         const prompt =
           step === 0
-            ? room.taskPrompt
+            ? interjectionText
+              ? `${room.taskPrompt}\n\n${interjectionText}`
+              : room.taskPrompt
             : interjectionText
               ? `${interjectionText}\n\nContinue the work.`
               : "Continue the work.";

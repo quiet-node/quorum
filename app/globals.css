@@ -1511,3 +1511,14 @@ pre.file-body {
     margin-top: 22px;
   }
 }
+
+/* ---------- auto-start notice (room composer) ---------- */
+.waking {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 2px 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--t3);
+}

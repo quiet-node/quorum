@@ -57,6 +57,34 @@ const ARTIFACT_RE = /```artifact\n([\s\S]*?)```/g;
 
 const ARTIFACT_OPEN = "```artifact\n";
 
+// Mirrors RUN_COMPLETE_MARKER in convex/agent.ts. Kept as a local literal so
+// the client bundle never imports the agent runtime.
+const RUN_COMPLETE_MARKER = "[RUN_COMPLETE]";
+
+/** Shortest marker prefix worth hiding mid-stream; "[" alone is too common in prose. */
+const MIN_PARTIAL_MARKER = 2;
+
+/**
+ * Removes the agent's run-completion sentinel from text meant for humans.
+ *
+ * Drops every complete occurrence anywhere in the text, then drops a trailing
+ * partial marker so a half-streamed sentinel never flashes in the transcript.
+ */
+function stripRunCompleteMarker(text: string): string {
+  let out = text.split(RUN_COMPLETE_MARKER).join("");
+  for (
+    let len = RUN_COMPLETE_MARKER.length - 1;
+    len >= MIN_PARTIAL_MARKER;
+    len--
+  ) {
+    if (out.endsWith(RUN_COMPLETE_MARKER.slice(0, len))) {
+      out = out.slice(0, -len);
+      break;
+    }
+  }
+  return out;
+}
+
 // Steps have a bounded output budget, so the final artifact fence is often
 // left unterminated. Take the last opened block whether or not it closed.
 function extractLastArtifact(
@@ -71,13 +99,13 @@ function extractLastArtifact(
     const end = rest.indexOf("```");
     last = end === -1 ? rest : rest.slice(0, end);
   }
-  return last;
+  return last === null ? null : stripRunCompleteMarker(last);
 }
 
 // The agent re-emits the whole working draft inside a ```artifact fence every
 // step. The draft belongs in the right pane, not in the transcript prose.
 function stripArtifact(text: string) {
-  return text
+  return stripRunCompleteMarker(text)
     .replace(ARTIFACT_RE, "")
     .replace(/```artifact[\s\S]*$/, "")
     .replace(/\n{3,}/g, "\n\n")
@@ -451,11 +479,24 @@ export default function RoomPage() {
   const [joining, setJoining] = useState(false);
   const [interjectionInput, setInterjectionInput] = useState("");
   const [sending, setSending] = useState(false);
+  const [waking, setWaking] = useState(false);
   const [roomUrl, setRoomUrl] = useState("");
 
   useEffect(() => {
     setRoomUrl(window.location.href);
   }, []);
+
+  // The waking notice is transient: it clears as soon as the run shows up, and
+  // times out on its own if a spend cap quietly refused the auto-start.
+  useEffect(() => {
+    if (!waking) return;
+    if (running) {
+      setWaking(false);
+      return;
+    }
+    const timeout = setTimeout(() => setWaking(false), 8000);
+    return () => clearTimeout(timeout);
+  }, [waking, running]);
 
   // Heartbeat while we have an identity.
   useEffect(() => {
@@ -488,6 +529,13 @@ export default function RoomPage() {
     }
   }
 
+  /**
+   * Sends a steer, and flags it when that steer woke a sleeping agent.
+   *
+   * A steer sent into an idle or finished room auto-starts a run server-side,
+   * which takes a moment to show up as a status change. The transient notice
+   * covers that gap so the room never looks like it swallowed the message.
+   */
   async function handleSendInterjection(e: React.FormEvent) {
     e.preventDefault();
     if (!identity || !interjectionInput.trim() || sending) return;
@@ -495,7 +543,12 @@ export default function RoomPage() {
     setInterjectionInput("");
     setSending(true);
     try {
-      await addInterjection({ roomId, authorName: identity.name, text });
+      const result = await addInterjection({
+        roomId,
+        authorName: identity.name,
+        text,
+      });
+      if (result?.autoStarted) setWaking(true);
     } finally {
       setSending(false);
     }
@@ -911,15 +964,22 @@ export default function RoomPage() {
                   placeholder="Steer the agent…"
                   disabled={sending}
                 />
-                <button
-                  type="button"
-                  className="stop"
-                  onClick={handleStop}
-                  disabled={!running || stopping}
-                >
-                  <i /> Stop
-                </button>
+                {running && (
+                  <button
+                    type="button"
+                    className="stop"
+                    onClick={handleStop}
+                    disabled={stopping}
+                  >
+                    <i /> Stop
+                  </button>
+                )}
               </div>
+              {waking && (
+                <div className="waking" role="status">
+                  <i className="dot dot-em" /> Waking the agent…
+                </div>
+              )}
               <div className="composer-meta">
                 <span>claude-sonnet-5</span>
                 <span>·</span>

@@ -1,7 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
-import { components } from "./_generated/api";
+import { api, components } from "./_generated/api";
 import { listUIMessages, syncStreams, vStreamArgs } from "@convex-dev/agent";
 import { agentModelId } from "./model";
 
@@ -158,6 +158,22 @@ export const listParticipants = query({
   },
 });
 
+/**
+ * Records a steer and, when nobody has the agent running, starts a run for it.
+ *
+ * A steer sent into an idle or finished room used to sit there silently until
+ * someone pressed Start, which reads as a broken app. Instead the steer itself
+ * wakes the agent: the new interjection is inserted unconsumed so the first
+ * step of the scheduled run picks it up. A finished room is reset first, which
+ * retires the earlier steers so only the new one drives the fresh run. Status
+ * "error" never auto-starts, so a retry after a failure stays explicit.
+ *
+ * The scheduled run goes through the same startRun action as the button, so
+ * every spend guard in reserveRun still applies. If a cap rejects it, the room
+ * simply stays idle rather than being marked errored.
+ *
+ * Returns whether a run was scheduled so the composer can say so.
+ */
 export const addInterjection = mutation({
   args: {
     roomId: v.id("rooms"),
@@ -165,12 +181,37 @@ export const addInterjection = mutation({
     text: v.string(),
   },
   handler: async (ctx, args) => {
+    const room = await ctx.db.get(args.roomId);
+    const status = room?.status;
+    const restarting = status === "done";
+
+    if (restarting) {
+      await ctx.db.patch(args.roomId, { status: "idle", stopRequested: false });
+      const previous = await ctx.db
+        .query("interjections")
+        .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
+        .collect();
+      for (const interjection of previous) {
+        if (!interjection.consumed) {
+          await ctx.db.patch(interjection._id, { consumed: true });
+        }
+      }
+    }
+
     await ctx.db.insert("interjections", {
       roomId: args.roomId,
       authorName: args.authorName,
       text: args.text,
       consumed: false,
     });
+
+    const autoStart = status === "idle" || restarting;
+    if (autoStart) {
+      await ctx.scheduler.runAfter(0, api.agent.startRun, {
+        roomId: args.roomId,
+      });
+    }
+    return { autoStarted: autoStart };
   },
 });
 
